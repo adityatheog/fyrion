@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% block title %}Manage {{ guild.name }}{% endblock %}
+
+{% macro channel_select(field, label, help='') %}
+  <label class="field">
+    <span class="field-label">{{ label }}</span>
+    <select data-field="{{ field }}" data-kind="snowflake"
+            data-initial="{{ settings[field] if settings[field] is not none else '' }}"
+            {% if not guild.live %}disabled{% endif %}>
+      <option value="">&mdash; disabled &mdash;</option>
+      {% for channel in text_channels %}
+        <option value="{{ channel.id }}"
+                {% if settings[field] is not none and settings[field]|string == channel.id %}selected{% endif %}>
+          #{{ channel.name }}{% if channel.writable is false %} (not writable){% endif %}
+        </option>
+      {% endfor %}
+      {% if settings[field] is not none and guild.live and settings[field]|string not in text_channels|map(attribute='id')|list %}
+        <option value="{{ settings[field] }}" selected>Unknown channel ({{ settings[field] }})</option>
+      {% endif %}
+    </select>
+    {% if help %}<span class="field-help">{{ help }}</span>{% endif %}
+  </label>
+{% endmacro %}
+
+{% macro category_select(field, label, help='') %}
+  <label class="field">
+    <span class="field-label">{{ label }}</span>
+    <select data-field="{{ field }}" data-kind="snowflake"
+            data-initial="{{ settings[field] if settings[field] is not none else '' }}"
+            {% if not guild.live %}disabled{% endif %}>
+      <option value="">&mdash; not set &mdash;</option>
+      {% for category in categories %}
+        <option value="{{ category.id }}"
+                {% if settings[field] is not none and settings[field]|string == category.id %}selected{% endif %}>
+          {{ category.name }}
+        </option>
+      {% endfor %}
+      {% if settings[field] is not none and guild.live and settings[field]|string not in categories|map(attribute='id')|list %}
+        <option value="{{ settings[field] }}" selected>Unknown category ({{ settings[field] }})</option>
+      {% endif %}
+    </select>
+    {% if help %}<span class="field-help">{{ help }}</span>{% endif %}
+  </label>
+{% endmacro %}
+
+{% macro role_select(field, label, help='', assignable_only=True) %}
+  <label class="field">
+    <span class="field-label">{{ label }}</span>
+    <select data-field="{{ field }}" data-kind="snowflake"
+            data-initial="{{ settings[field] if settings[field] is not none else '' }}"
+            {% if not guild.live %}disabled{% endif %}>
+      <option value="">&mdash; disabled &mdash;</option>
+      {% for role in roles %}
+        {% if not role.is_default %}
+          <option value="{{ role.id }}"
+                  {% if assignable_only and not role.assignable %}disabled{% endif %}
+                  {% if settings[field] is not none and settings[field]|string == role.id %}selected{% endif %}>
+            @{{ role.name }}{% if assignable_only and not role.assignable %} (Fyrion cannot assign){% endif %}
+          </option>
+        {% endif %}
+      {% endfor %}
+      {% if settings[field] is not none and guild.live and settings[field]|string not in roles|map(attribute='id')|list %}
+        <option value="{{ settings[field] }}" selected>Unknown role ({{ settings[field] }})</option>
+      {% endif %}
+    </select>
+    {% if help %}<span class="field-help">{{ help }}</span>{% endif %}
+  </label>
+{% endmacro %}
+
+{% macro toggle(field, label, help='') %}
+  <label class="switch">
+    <input type="checkbox" data-field="{{ field }}" data-kind="bool"
+           data-initial="{{ 'true' if settings[field] else 'false' }}"
+           {% if settings[field] %}checked{% endif %} />
+    <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+    <span class="switch-copy">
+      <strong>{{ label }}</strong>
+      {% if help %}<span class="field-help">{{ help }}</span>{% endif %}
+    </span>
+  </label>
+{% endmacro %}
+
+{% macro number_field(field, label, min, max, help='') %}
+  <label class="field">
+    <span class="field-label">{{ label }}</span>
+    <input type="number" inputmode="numeric" min="{{ min }}" max="{{ max }}"
+           data-field="{{ field }}" data-kind="int" data-required="true"
+           data-initial="{{ settings[field] if settings[field] is not none else '' }}"
+           value="{{ settings[field] if settings[field] is not none else '' }}" />
+    {% if help %}<span class="field-help">{{ help }}</span>{% endif %}
+  </label>
+{% endmacro %}
+
+{% block content %}
+<section class="page-head">
+  <div class="page-head-main">
+    {% if guild.icon_url %}
+      <img class="guild-icon" src="{{ guild.icon_url }}" alt="" width="56" height="56" />
+    {% else %}
+      <span class="guild-icon guild-icon-fallback" aria-hidden="true">{{ guild.name[:1]|upper }}</span>
+    {% endif %}
+    <div>
+      <h1 class="page-title">{{ guild.name }}</h1>
+      <p class="muted small">
+        ID <code>{{ guild.id }}</code>
+        {% if guild.member_count is not none %} &middot; {{ "{:,}".format(guild.member_count) }} members{% endif %}
+      </p>
+    </div>
+  </div>
+  <a class="btn btn-ghost" href="{{ url_for('dashboard_page') }}">&larr; All servers</a>
+</section>
+
+{% if not guild.live %}
+  <div class="notice notice-warn" role="status">
+    Fyrion's gateway client is not attached to this dashboard, so channel and role
+    pickers are disabled. Text and numeric settings can still be edited.
+  </div>
+{% endif %}
+
+<div id="bootstrap" hidden data-payload="{{ bootstrap_json }}"></div>
+
+<form id="settings-form" class="settings" novalidate>
+  <section class="card section">
+    <header class="section-head">
+      <h2 class="card-title">General</h2>
+      <p class="muted small">Basic identity for this server's Fyrion configuration.</p>
+    </header>
+    <div class="grid grid-3">
+      <label class="field">
+        <span class="field-label">Custom command prefix</span>
+        <input type="text" maxlength="8" data-field="prefix" data-kind="string" data-required="true"
+               data-initial="{{ settings.prefix|default('!', true) }}"
+               value="{{ settings.prefix|default('!', true) }}" />
+        <span class="field-help">Used by custom commands. Fyrion's own commands are slash commands.</span>
+      </label>
+      <label class="field">
+        <span class="field-label">Locale</span>
+        <input type="text" maxlength="16" data-field="locale" data-kind="string" data-required="true"
+               data-initial="{{ settings.locale|default('en-US', true) }}"
+               value="{{ settings.locale|default('en-US', true) }}" />
+      </label>
+      <label class="field">
+        <span class="field-label">Timezone</span>
+        <input type="text" maxlength="64" data-field="timezone" data-kind="string" data-required="true"
+               data-initial="{{ settings.timezone|default('UTC', true) }}"
+               value="{{ settings.timezone|default('UTC', true) }}" />
+        <span class="field-help">IANA name, for example <code>Europe/Berlin</code>.</span>
+      </label>
+    </div>
+  </section>
+
+  <section class="card section">
+    <header class="section-head">
+      <h2 class="card-title">Logging</h2>
+      <p class="muted small">
+        Moderation actions and AutoMod enforcement go to the moderation log;
+        gateway events go to the audit log.
+      </p>
+    </header>
+    <div class="grid grid-3">
+      {{ channel_select('mod_log_channel_id', 'Moderation log', 'Kicks, bans, timeouts, warnings, purges.') }}
+      {{ channel_select('audit_log_channel_id', 'Audit log', 'Message edits and deletions, role and channel changes.') }}
+      {{ channel_select('message_log_channel_id', 'Message log') }}
+    </div>
+  </section>
+
+  <section class="card section">
+    <header class="section-head">
+      <h2 class="card-title">Welcome &amp; goodbye</h2>
+      <p class="muted small">
+        Placeholders: <code>{user}</code>, <code>{user_mention}</code>,
+        <code>{user_name}</code>, <code>{user_id}</code>, <code>{server}</code>,
+        <code>{member_count}</code>.
+      </p>
+    </header>
+    <div class="grid grid-2">
+      {{ channel_select('welcome_channel_id', 'Welcome channel') }}
+      <label class="field">
+        <span class="field-label">Welcome message</span>
+        <textarea rows="3" maxlength="2000" data-field="welcome_message" data-kind="string"
+                  data-initial="{{ settings.welcome_message|default('', true) }}"
+                  placeholder="Welcome to {server}, {user_mention}!">{{ settings.welcome_message|default('', true) }}</textarea>
+        <span class="field-help">Leave empty to use Fyrion's default welcome embed.</span>
+      </label>
+      {{ channel_select('goodbye_channel_id', 'Goodbye channel') }}
+      <label class="field">
+        <span class="field-label">Goodbye message</span>
+        <textarea rows="3" maxlength="2000" data-field="goodbye_message" data-kind="string"
+                  data-initial="{{ settings.goodbye_message|default('', true) }}"
+                  placeholder="{user} has left {server}.">{{ settings.goodbye_message|default('', true) }}</textarea>
+      </label>
+    </div>
+    <div class="grid grid-2">
+      {{ role_select('autorole_id', 'Autorole', 'Granted automatically when a member joins.') }}
+      {{ role_select('mute_role_id', 'Mute role', 'Used by manual mutes where a timeout is not enough.') }}
+    </div>
+  </section>
+
+  <section class="card section">
+    <header class="section-head">
+      <h2 class="card-title">Tickets</h2>
+      <p class="muted small">Run <code>/ticket-setup</code> in Discord to post the panel itself.</p>
+    </header>
+    <div class="grid grid-3">
+      {{ category_select('ticket_category_id', 'Ticket category', 'Private ticket channels are created here.') }}
+      {{ channel_select('ticket_log_channel_id', 'Transcript channel', 'Closing transcripts are uploaded here.') }}
+      {{ role_select('ticket_support_role_id', 'Support role', 'Granted access to every ticket.', assignable_only=False) }}
+    </div>
+  </section>
+
+  <section class="card section">
+    <header class="section-head">
+      <h2 class="card-title">Leveling</h2>
+    </header>
+    <div class="switch-row">
+      {{ toggle('leveling_enabled', 'Award XP for messages') }}
+      {{ toggle('leveling_stack_rewards', 'Stack reward roles', 'Off keeps only the highest earned tier.') }}
+    </div>
+    <div class="grid grid-3">
+      {{ channel_select('leveling_announce_channel_id', 'Level-up channel', 'Empty announces in the channel the member was talking in.') }}
+      {{ number_field('leveling_xp_per_message', 'XP per message', 0, 10000) }}
+      {{ number_field('leveling_cooldown_seconds', 'XP cooldown (seconds)', 0, 86400) }}
+    </div>
+  </section>
+
+  <section class="card section">
+    <header class="section-head">
+      <h2 class="card-title">Economy</h2>
+    </header>
+    <div class="switch-row">
+      {{ toggle('economy_enabled', 'Enable the economy') }}
+    </div>
+    <div class="grid grid-3">
+      <label class="field">
+        <span class="field-label">Currency symbol</span>
+        <input type="text" maxlength="8" data-field="economy_currency_symbol" data-kind="string" data-required="true"
+               data-initial="{{ settings.economy_currency_symbol|default('$', true) }}"
+               value="{{ settings.economy_currency_symbol|default('$', true) }}" />
+      </label>
+      {{ number_field('economy_daily_amount', 'Daily reward', 0, 1000000) }}
+      {{ number_field('economy_work_amount', 'Work reward', 0, 1000000) }}
+    </div>
+  </section>
+
+  <section class="card section">
+    <header class="section-head">
+      <h2 class="card-title">Automation</h2>
+    </header>
+    <div class="switch-row">
+      {{ toggle('automod_enabled', 'AutoMod engine', 'Individual filters are configured with the /automod-* commands.') }}
+      {{ toggle('dashboard_enabled', 'Expose this server on the dashboard') }}
+    </div>
+  </section>
+
+  <div class="actionbar" role="region" aria-label="Save changes">
+    <span class="actionbar-status" id="dirty-status">No unsaved changes</span>
+    <div class="actionbar-buttons">
+      <button class="btn btn-ghost" type="button" id="reset-button">Discard</button>
+      <button class="btn btn-primary" type="submit" id="save-button" disabled>Save changes</button>
+    </div>
+  </div>
+</form>
+
+<div class="toast-stack" id="toasts" aria-live="assertive" aria-atomic="true"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/manage.js') }}" defer></script>
+{% endblock %}

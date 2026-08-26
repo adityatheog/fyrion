@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Your servers{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <h1 class="page-title">Your servers</h1>
+    <p class="muted">
+      These are the servers where you hold <strong>Manage Server</strong>.
+      {% if managed_count %}
+        Fyrion is already in {{ managed_count }} of them.
+      {% endif %}
+    </p>
+  </div>
+  {% if invite_url %}
+    <a class="btn btn-secondary" href="{{ invite_url }}" rel="noreferrer noopener" target="_blank">Invite Fyrion</a>
+  {% endif %}
+</section>
+
+{% if not bot_online %}
+  <div class="notice notice-warn" role="status">
+    The dashboard is running without the gateway client, so live server details,
+    channel pickers and role pickers are unavailable. Stored settings can still be
+    read and written.
+  </div>
+{% endif %}
+
+<section class="stats" id="stats" aria-live="polite">
+  <div class="card stat">
+    <span class="stat-label">Servers</span>
+    <strong class="stat-value" data-stat="guilds">&hellip;</strong>
+  </div>
+  <div class="card stat">
+    <span class="stat-label">Members reached</span>
+    <strong class="stat-value" data-stat="users">&hellip;</strong>
+  </div>
+  <div class="card stat">
+    <span class="stat-label">Shards</span>
+    <strong class="stat-value" data-stat="shards">&hellip;</strong>
+  </div>
+  <div class="card stat">
+    <span class="stat-label">Gateway latency</span>
+    <strong class="stat-value" data-stat="latency_ms">&hellip;</strong>
+  </div>
+  <div class="card stat">
+    <span class="stat-label">Slash commands</span>
+    <strong class="stat-value" data-stat="commands">&hellip;</strong>
+  </div>
+  <div class="card stat">
+    <span class="stat-label">Modules loaded</span>
+    <strong class="stat-value" data-stat="cogs">&hellip;</strong>
+  </div>
+</section>
+
+<p class="muted small" id="stats-note" hidden></p>
+
+{% if guilds %}
+  <section class="guild-grid">
+    {% for guild in guilds %}
+      <article class="card guild-card{% if not guild.bot_present %} guild-card-muted{% endif %}">
+        <header class="guild-head">
+          {% if guild.icon_url %}
+            <img class="guild-icon" src="{{ guild.icon_url }}" alt="" width="48" height="48" />
+          {% else %}
+            <span class="guild-icon guild-icon-fallback" aria-hidden="true">{{ guild.name[:1]|upper }}</span>
+          {% endif %}
+          <div class="guild-meta">
+            <h2 class="guild-name">{{ guild.name }}</h2>
+            <p class="muted small">
+              {% if guild.owner %}Owner{% elif guild.administrator %}Administrator{% else %}Manage Server{% endif %}
+              {% if guild.member_count is not none %}
+                &middot; {{ "{:,}".format(guild.member_count) }} members
+              {% endif %}
+            </p>
+          </div>
+        </header>
+
+        <div class="guild-tags">
+          {% if guild.bot_present %}
+            <span class="pill pill-ok">Fyrion is here</span>
+            {% if guild.shard_id is not none %}
+              <span class="pill">Shard {{ guild.shard_id }}</span>
+            {% endif %}
+          {% else %}
+            <span class="pill pill-warn">Fyrion not added</span>
+          {% endif %}
+        </div>
+
+        <footer class="guild-actions">
+          {% if guild.bot_present %}
+            <a class="btn btn-primary" href="{{ url_for('manage_page', guild_id=guild.id) }}">Manage</a>
+          {% elif invite_url %}
+            <a class="btn btn-secondary" href="{{ invite_url }}&amp;guild_id={{ guild.id }}" rel="noreferrer noopener" target="_blank">Add to server</a>
+          {% else %}
+            <span class="muted small">Invite Fyrion to configure this server.</span>
+          {% endif %}
+        </footer>
+      </article>
+    {% endfor %}
+  </section>
+{% else %}
+  <section class="card empty">
+    <h2 class="card-title">No manageable servers</h2>
+    <p class="muted">
+      You need the <strong>Manage Server</strong> permission in a server before it
+      appears here. If you were granted it recently, sign out and sign in again to
+      refresh the list.
+    </p>
+    <form class="inline-form" method="post" action="{{ url_for('logout') }}">
+      <button class="btn btn-secondary" type="submit">Refresh sign-in</button>
+    </form>
+  </section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='/js/dashboard.js') }}" defer></script>
+{% endblock %}

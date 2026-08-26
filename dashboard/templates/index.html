@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Powerful tools for better Discord communities{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="hero-copy">
+    <span class="pill pill-accent">Self-hosted &middot; open source</span>
+    <h1 class="hero-title">Powerful tools for better Discord&nbsp;communities.</h1>
+    <p class="hero-lead">
+      Fyrion is a modern, secure, multi-guild Discord bot. Moderation, AutoMod,
+      tickets, leveling, giveaways and invite tracking &mdash; all configured from
+      one dark, no-nonsense dashboard.
+    </p>
+
+    <div class="hero-actions">
+      {% if user %}
+        <a class="btn btn-primary btn-lg" href="{{ url_for('dashboard_page') }}">Open your servers</a>
+      {% elif oauth_ready %}
+        <a class="btn btn-primary btn-lg" href="{{ url_for('login') }}">Sign in with Discord</a>
+      {% else %}
+        <span class="pill pill-warn">
+          Set DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET to enable sign-in
+        </span>
+      {% endif %}
+      <a class="btn btn-secondary btn-lg" href="https://github.com/adityatheog/fyrion" rel="noreferrer noopener" target="_blank">View the source</a>
+    </div>
+
+    <p class="hero-note">
+      Signing in only asks for <code>identify</code> and <code>guilds</code>. Fyrion
+      never stores your Discord access token &mdash; it is revoked the moment your
+      profile has been read.
+    </p>
+  </div>
+
+  <div class="hero-panel" aria-hidden="true">
+    <div class="panel-row">
+      <span class="dot dot-red"></span>
+      <span class="dot dot-amber"></span>
+      <span class="dot dot-green"></span>
+    </div>
+    <pre class="panel-code">/mod ban        &rarr; hierarchy enforced
+/automod-status &rarr; 7 filters ready
+/ticket-setup   &rarr; panel posted
+/rank           &rarr; level 42 &middot; 18,240 XP
+/giveaway-start &rarr; live countdown</pre>
+    <div class="panel-grid">
+      <div class="panel-stat"><strong>SQLite</strong><span>WAL pooled</span></div>
+      <div class="panel-stat"><strong>Sharded</strong><span>AutoShardedBot</span></div>
+      <div class="panel-stat"><strong>Scoped</strong><span>per-guild data</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="features">
+  <article class="card feature">
+    <h2 class="card-title">Secure moderation</h2>
+    <p class="muted">
+      Kick, ban, timeout, warn and purge with Discord's role hierarchy enforced
+      server-side on every action, plus an append-only case history.
+    </p>
+  </article>
+
+  <article class="card feature">
+    <h2 class="card-title">AutoMod that explains itself</h2>
+    <p class="muted">
+      Spam, invites, links, blocked words, mentions, lines and caps. Every
+      enforcement is mirrored to your moderation log with the exact trigger.
+    </p>
+  </article>
+
+  <article class="card feature">
+    <h2 class="card-title">Tickets with transcripts</h2>
+    <p class="muted">
+      Button-driven private channels, claimable by staff, closed with a plain-text
+      transcript archived to the channel you choose.
+    </p>
+  </article>
+
+  <article class="card feature">
+    <h2 class="card-title">Leveling and rewards</h2>
+    <p class="muted">
+      XP per message with cooldowns, a quadratic curve, level reward roles and
+      reputation &mdash; all tunable per server.
+    </p>
+  </article>
+
+  <article class="card feature">
+    <h2 class="card-title">Giveaways</h2>
+    <p class="muted">
+      Live countdowns, one entry per member enforced in the database, weighted
+      draws and rerolls that never pick a previous winner.
+    </p>
+  </article>
+
+  <article class="card feature">
+    <h2 class="card-title">Built for self-hosting</h2>
+    <p class="muted">
+      Parameterised SQL, per-guild isolation, hardened HTTP headers and a
+      dashboard that refuses to start without an authentication provider.
+    </p>
+  </article>
+</section>
+{% endblock %}

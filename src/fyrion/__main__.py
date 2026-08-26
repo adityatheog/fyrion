@@ -1,28 +1,12 @@
 """
-Application entry point.
-"""
-import logging
-from fyrion.config import Config
-from fyrion.logging.logger import setup_logging
-from fyrion.bot import Fyrion
+``python -m fyrion``.
 
-def main() -> None:
-    # 1. Validate environment securely before anything else
-    Config.validate()
-    
-    # 2. Initialize structured logging
-    setup_logging()
-    log = logging.getLogger("fyrion.main")
-    
-    # 3. Instantiate bot
-    bot = Fyrion()
-    
-    try:
-        log.info("Starting Fyrion process...")
-        # log_handler=None prevents discord.py from overriding our custom logging configuration
-        bot.run(Config.DISCORD_TOKEN, log_handler=None)
-    except Exception as e:
-        log.critical(f"Fatal error during runtime: {e}", exc_info=True)
+Thin wrapper around :func:`fyrion.runtime.main`, which is the single
+implementation of the startup and shutdown sequence.
+"""
+from __future__ import annotations
+
+from fyrion.runtime import main
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -1,87 +1,331 @@
 """
 Persistent views for the ticket system.
+
+Both views use fixed ``custom_id``s and ``timeout=None``, so Discord routes
+interactions from panels posted before a restart back to this process. They are
+registered in :data:`fyrion.bot.PERSISTENT_VIEWS`.
+
+A persistent view cannot carry per-guild state, because it is constructed once at
+boot rather than per message. The panel therefore declares a fixed set of topic
+slots (``fyrion:ticket:create:0`` through ``:4``); the label, emoji and style of
+each slot are read from the guild's stored panel configuration when the button is
+pressed, and unconfigured slots simply report that the panel needs rebuilding.
+
+All ticket logic lives in :mod:`fyrion.utils.tickets`, which the slash commands
+also call, so a button and a command can never diverge in behaviour or in the
+permission checks they apply.
+
+Every reply here is ephemeral: a failed ticket attempt is the member's business,
+not the channel's.
 """
+from __future__ import annotations
+
 import logging
+from typing import Any
+
 import discord
-from discord.ui import View, Button
+from discord.ui import Button, View
+
 from fyrion.database.repositories.tickets import TicketRepository
+from fyrion.utils import tickets as service
 
 log = logging.getLogger("fyrion.views.tickets")
 
+NO_MENTIONS = discord.AllowedMentions.none()
+
+CREATE_PREFIX = "fyrion:ticket:create"
+CLOSE_ID = "fyrion:ticket:close"
+CLAIM_ID = "fyrion:ticket:claim"
+
+
+def _repo(interaction: discord.Interaction) -> TicketRepository:
+    return TicketRepository(interaction.client.db)  # type: ignore[attr-defined]
+
+
+async def _reply(
+    interaction: discord.Interaction, message: str, *, ephemeral: bool = True
+) -> None:
+    try:
+        if interaction.response.is_done():
+            await interaction.followup.send(
+                message, ephemeral=ephemeral, allowed_mentions=NO_MENTIONS
+            )
+        else:
+            await interaction.response.send_message(
+                message, ephemeral=ephemeral, allowed_mentions=NO_MENTIONS
+            )
+    except discord.NotFound:
+        # The interaction token expired; there is nothing left to answer.
+        log.debug("Ticket interaction expired before it could be answered.")
+    except discord.HTTPException as exc:
+        log.warning("Could not answer a ticket interaction: %s", exc)
+
+
 class TicketControlView(View):
-    """View attached inside the actual ticket channel for staff and users."""
+    """Claim and close controls posted inside a ticket channel."""
+
     def __init__(self) -> None:
         super().__init__(timeout=None)
-        
-    @discord.ui.button(label="Close Ticket", style=discord.ButtonStyle.danger, custom_id="fyrion:ticket:close", emoji="🔒")
-    async def close_ticket(self, interaction: discord.Interaction, button: Button) -> None:
-        # Prevent double-clicks by immediately deferring
-        await interaction.response.defer()
-        
-        repo = TicketRepository(interaction.client.db) # type: ignore
-        await repo.close_ticket(interaction.channel_id) # type: ignore
-        
+
+    @discord.ui.button(
+        label="Claim",
+        style=discord.ButtonStyle.success,
+        custom_id=CLAIM_ID,
+        emoji="\U0001f44b",
+    )
+    async def claim_ticket(
+        self, interaction: discord.Interaction, button: Button
+    ) -> None:
+        guild = interaction.guild
+        member = interaction.user
+        if guild is None or not isinstance(member, discord.Member):
+            await _reply(interaction, "\u274c This only works inside a server.")
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        repo = _repo(interaction)
+
         try:
-            assert isinstance(interaction.channel, discord.TextChannel)
-            await interaction.channel.delete(reason=f"Ticket closed by {interaction.user}")
-        except discord.Forbidden:
-            await interaction.followup.send("❌ I lack permissions to delete this channel.", ephemeral=True)
-        except discord.HTTPException as e:
-            log.error(f"Failed to delete ticket channel {interaction.channel_id}: {e}")
+            config = await repo.get_config(guild.id)
+            ticket = await repo.get_ticket_by_channel(interaction.channel_id or 0)
+        except Exception:
+            log.exception("Could not read the ticket for a claim interaction.")
+            await _reply(interaction, "\u274c I could not read that ticket.")
+            return
+
+        if ticket is None:
+            await _reply(interaction, "\u274c This channel is not a Fyrion ticket.")
+            return
+
+        # Staff status is re-checked here rather than trusted from the button's
+        # visibility, which Discord does not restrict.
+        if not service.is_support(member, config):
+            await _reply(
+                interaction, "\U0001f6ab Only ticket staff can claim a ticket."
+            )
+            return
+
+        if str(ticket.get("status")) == "closed":
+            await _reply(interaction, "\u274c That ticket is already closed.")
+            return
+
+        claimed_by = ticket.get("claimed_by")
+        if claimed_by and int(claimed_by) == member.id:
+            await _reply(interaction, "\u2139\ufe0f You have already claimed this ticket.")
+            return
+
+        if not await repo.claim_ticket(interaction.channel_id or 0, member.id):
+            holder = f"<@{int(claimed_by)}>" if claimed_by else "another staff member"
+            await _reply(
+                interaction, f"\u2139\ufe0f This ticket is already claimed by {holder}."
+            )
+            return
+
+        await _reply(interaction, "\u2705 You claimed this ticket.")
+
+        channel = interaction.channel
+        if isinstance(channel, discord.TextChannel):
+            embed = discord.Embed(
+                description=f"{member.mention} claimed this ticket.",
+                color=discord.Color.green(),
+                timestamp=discord.utils.utcnow(),
+            )
+            try:
+                await channel.send(embed=embed, allowed_mentions=NO_MENTIONS)
+            except discord.HTTPException:
+                pass
+
+    @discord.ui.button(
+        label="Close Ticket",
+        style=discord.ButtonStyle.danger,
+        custom_id=CLOSE_ID,
+        emoji="\U0001f512",
+    )
+    async def close_ticket(
+        self, interaction: discord.Interaction, button: Button
+    ) -> None:
+        guild = interaction.guild
+        member = interaction.user
+        if guild is None or not isinstance(member, discord.Member):
+            await _reply(interaction, "\u274c This only works inside a server.")
+            return
+
+        # Deferring immediately also makes a double click harmless: the second
+        # close is rejected by the conditional UPDATE in the service layer.
+        await interaction.response.defer(ephemeral=True)
+        repo = _repo(interaction)
+
+        try:
+            config = await repo.get_config(guild.id)
+            ticket = await repo.get_ticket_by_channel(interaction.channel_id or 0)
+        except Exception:
+            log.exception("Could not read the ticket for a close interaction.")
+            await _reply(interaction, "\u274c I could not read that ticket.")
+            return
+
+        if ticket is None:
+            await _reply(interaction, "\u274c This channel is not a Fyrion ticket.")
+            return
+
+        # The member who opened the ticket may close their own; everyone else
+        # needs to be staff.
+        if not (
+            service.is_owner(ticket, member) or service.is_support(member, config)
+        ):
+            await _reply(
+                interaction,
+                "\U0001f6ab Only the member who opened this ticket or a staff "
+                "member can close it.",
+            )
+            return
+
+        channel = interaction.channel
+        if not isinstance(channel, discord.TextChannel):
+            await _reply(
+                interaction, "\u274c Tickets can only be closed from their own channel."
+            )
+            return
+
+        result = await service.close_ticket(
+            guild=guild,
+            channel=channel,
+            repo=repo,
+            closed_by=member,
+            reason="Closed with the ticket button",
+            config=config,
+        )
+
+        if not result.closed:
+            await _reply(
+                interaction, f"\u274c {result.error or 'That ticket could not be closed.'}"
+            )
+            return
+
+        lines = [
+            "\u2705 Ticket closed. The channel will be deleted in a few seconds."
+        ]
+        if result.log_url:
+            lines.append(f"Transcript archived: {result.log_url}")
+        lines.extend(f"\u26a0\ufe0f {warning}" for warning in result.warnings)
+        await _reply(interaction, "\n".join(lines))
+
 
 class TicketPanelView(View):
-    """The persistent panel containing the 'Create Ticket' button."""
+    """The persistent panel exposing one button per configured topic.
+
+    Every slot is declared up front so the ``custom_id``s are stable across
+    restarts. Labels are refreshed from the database each time a panel is posted
+    (see :meth:`for_config`); the pressed slot is resolved against the stored
+    configuration, so a panel posted months ago still opens the right topic.
+    """
+
     def __init__(self) -> None:
         super().__init__(timeout=None)
+        for index in range(service.MAX_TOPICS):
+            self.add_item(TicketCreateButton(index))
 
-    @discord.ui.button(label="Create Ticket", style=discord.ButtonStyle.primary, custom_id="fyrion:ticket:create", emoji="🎫")
-    async def create_ticket(self, interaction: discord.Interaction, button: Button) -> None:
-        assert interaction.guild is not None
-        repo = TicketRepository(interaction.client.db) # type: ignore
-        
-        # 1. Configuration Check
-        config = await repo.get_config(interaction.guild.id)
-        if not config or not config.get("category_id"):
-            await interaction.response.send_message("❌ The ticket system is not configured for this server.", ephemeral=True)
-            return
-            
-        category = interaction.guild.get_channel(config["category_id"])
-        if not isinstance(category, discord.CategoryChannel):
-            await interaction.response.send_message("❌ The configured ticket category is missing or invalid.", ephemeral=True)
+    @classmethod
+    def for_config(cls, config: dict[str, Any]) -> "TicketPanelView":
+        """Returns a view whose buttons reflect the guild's stored topics."""
+        view = cls()
+        topics = service.sanitize_topics(config.get("topics"))
+
+        for item in list(view.children):
+            if not isinstance(item, TicketCreateButton):
+                continue
+            if item.index >= len(topics):
+                # Unused slots are removed from the posted message, but their
+                # custom ids remain registered for older panels.
+                view.remove_item(item)
+                continue
+
+            topic = topics[item.index]
+            item.label = str(topic.get("label") or "Create Ticket")[
+                : service.MAX_TOPIC_LABEL
+            ]
+            item.style = service.button_style(topic.get("style"))
+            emoji = topic.get("emoji")
+            if emoji:
+                try:
+                    item.emoji = discord.PartialEmoji.from_str(str(emoji))
+                except (ValueError, TypeError):
+                    item.emoji = None
+            else:
+                item.emoji = None
+
+        return view
+
+
+class TicketCreateButton(Button["TicketPanelView"]):
+    """One topic slot on the ticket panel."""
+
+    def __init__(self, index: int) -> None:
+        super().__init__(
+            label="Create Ticket" if index == 0 else f"Topic {index + 1}",
+            style=discord.ButtonStyle.primary,
+            custom_id=f"{CREATE_PREFIX}:{index}",
+            emoji="\U0001f3ab" if index == 0 else None,
+        )
+        self.index = index
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        guild = interaction.guild
+        member = interaction.user
+        if guild is None or not isinstance(member, discord.Member):
+            await _reply(interaction, "\u274c Tickets can only be opened in a server.")
             return
 
-        # 2. Duplicate Check (One open ticket per user)
-        existing = await repo.get_open_ticket_for_user(interaction.guild.id, interaction.user.id)
-        if existing:
-            await interaction.response.send_message("❌ You already have an open ticket.", ephemeral=True)
-            return
-
-        # 3. Create Channel securely
-        overwrites = {
-            interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True),
-            interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, manage_channels=True)
-        }
+        # Channel creation and the greeting take longer than the three second
+        # interaction window allows.
+        await interaction.response.defer(ephemeral=True)
+        repo = _repo(interaction)
 
         try:
-            # We prefix with ticket- to identify them easily
-            safe_name = "".join([c for c in interaction.user.display_name if c.isalnum()]).lower() or "user"
-            channel = await category.create_text_channel(
-                name=f"ticket-{safe_name}", 
-                overwrites=overwrites,
-                reason=f"Ticket created by {interaction.user}"
+            config = await repo.get_config(guild.id)
+        except Exception:
+            log.exception("Could not read the ticket config for guild %s.", guild.id)
+            await _reply(
+                interaction,
+                "\u274c I could not read the ticket configuration. Please try again.",
             )
-        except discord.Forbidden:
-            await interaction.response.send_message("❌ I lack permissions to create channels in the ticket category.", ephemeral=True)
             return
 
-        # 4. Database persistence and greeting
-        await repo.create_ticket(interaction.guild.id, channel.id, interaction.user.id)
-        
-        embed = discord.Embed(
-            title="Ticket Created",
-            description=f"Welcome {interaction.user.mention}. Please describe your issue below.\nStaff will be with you shortly.",
-            color=discord.Color.blue()
+        topics = service.sanitize_topics(config.get("topics"))
+        if self.index >= len(topics):
+            await _reply(
+                interaction,
+                "\u274c That option is no longer available. Ask an administrator "
+                "to run `/ticket-setup` again.",
+            )
+            return
+
+        result = await service.open_ticket(
+            guild=guild,
+            member=member,
+            repo=repo,
+            config=config,
+            topic=topics[self.index],
+            panel_message_id=interaction.message.id if interaction.message else None,
+            control_view=TicketControlView(),
         )
-        await channel.send(embed=embed, view=TicketControlView())
-        await interaction.response.send_message(f"✅ Your ticket has been created: {channel.mention}", ephemeral=True)
+
+        if not result.ok or result.channel is None:
+            await _reply(
+                interaction,
+                f"\u274c {result.error or 'Your ticket could not be created.'}",
+            )
+            return
+
+        await _reply(
+            interaction, f"\u2705 Your ticket is ready: {result.channel.mention}"
+        )
+
+
+__all__ = [
+    "TicketControlView",
+    "TicketPanelView",
+    "TicketCreateButton",
+    "CREATE_PREFIX",
+    "CLAIM_ID",
+    "CLOSE_ID",
+]

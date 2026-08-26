@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="description" content="Fyrion dashboard: powerful tools for better Discord communities." />
+  <title>{% block title %}{{ title|default('Fyrion') }}{% endblock %} &middot; Fyrion</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/dashboard.css') }}" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="{{ url_for('index') }}">
+        <span class="brand-mark" aria-hidden="true">F</span>
+        <span class="brand-text">Fyrion</span>
+      </a>
+
+      <nav class="topnav" aria-label="Primary">
+        {% if user %}
+          <a class="navlink" href="{{ url_for('dashboard_page') }}">Servers</a>
+          <div class="user-chip" title="{{ user.username }}">
+            {% if user.avatar_url %}
+              <img class="avatar" src="{{ user.avatar_url }}" alt="" width="28" height="28" />
+            {% else %}
+              <span class="avatar avatar-fallback" aria-hidden="true">{{ user.username[:1]|upper }}</span>
+            {% endif %}
+            <span class="user-name">{{ user.username }}</span>
+          </div>
+          <form class="inline-form" method="post" action="{{ url_for('logout') }}">
+            <button class="btn btn-ghost" type="submit">Sign out</button>
+          </form>
+        {% elif oauth_ready %}
+          <a class="btn btn-primary" href="{{ url_for('login') }}">Sign in with Discord</a>
+        {% else %}
+          <span class="pill pill-warn">OAuth not configured</span>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+
+  <main class="shell" id="main">
+    {% if error %}
+      <section class="card card-error" role="alert">
+        <h1 class="card-title">Error {{ error.status }}</h1>
+        <p class="muted">{{ error.message }}</p>
+        <a class="btn btn-secondary" href="{{ url_for('index') }}">Back to start</a>
+      </section>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <span>Fyrion v{{ version }} &middot; {{ environment }}</span>
+      <span class="footer-links">
+        <a href="https://github.com/adityatheog/fyrion" rel="noreferrer noopener" target="_blank">Source</a>
+        <a href="https://github.com/adityatheog/fyrion/issues" rel="noreferrer noopener" target="_blank">Report an issue</a>
+        <a href="https://github.com/adityatheog/fyrion/blob/main/LICENSE" rel="noreferrer noopener" target="_blank">MIT licence</a>
+      </span>
+    </div>
+  </footer>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

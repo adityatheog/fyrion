@@ -1,0 +1,56 @@
+# ---------------------------------------------------------------------------
+# Fyrion runtime dependencies.
+#
+# Versions are pinned exactly so a rebuild months from now resolves the same
+# tree. Development tooling (pytest, black, flake8, mypy) lives in
+# pyproject.toml under the [dev] extra:  pip install -e ".[dev]"
+#
+# Everything here is asynchronous or a dependency of something asynchronous:
+# Fyrion runs the gateway client and the optional HTTP dashboard in a single
+# event loop, so a blocking driver anywhere in this list would stall the bot.
+# ---------------------------------------------------------------------------
+
+# --- Discord gateway client -------------------------------------------------
+# AutoShardedBot, application commands, persistent views.
+discord.py==2.4.0
+
+# --- Storage ----------------------------------------------------------------
+# Asynchronous SQLite driver. Fyrion pools several connections and runs the
+# database in WAL mode so readers never block the single writer.
+aiosqlite==0.20.0
+
+# --- Configuration ----------------------------------------------------------
+# Loads .env at import time in fyrion.config. Never used to inject secrets
+# into the image; the token is supplied at runtime.
+python-dotenv==1.0.1
+
+# --- Outbound HTTP ----------------------------------------------------------
+# Used by the fun cog (/meme, /quote, /urban) and by the dashboard's Discord
+# OAuth2 exchange. Imported defensively in the fun cog: without it those three
+# commands report that they are unavailable and the rest of the cog still loads.
+httpx==0.27.2
+# httpx's HTTP/1.1 implementation. Pinned explicitly so the transport layer
+# cannot drift underneath a pinned httpx.
+h11==0.14.0
+certifi==2024.8.30
+
+# --- Web dashboard ----------------------------------------------------------
+# Only needed when DASHBOARD_ENABLED=true (or when running python -m dashboard).
+# fyrion.runtime imports these lazily, so a bot-only deployment still starts if
+# they are absent.
+fastapi==0.115.6
+uvicorn==0.32.1
+pydantic==2.10.4
+pydantic-core==2.27.2
+starlette==0.41.3
+anyio==4.7.0
+
+# aiohttp backs fyrion.web.auth (the OAuth exchange used by the bot-hosted
+# dashboard); dashboard/app.py uses httpx for the same purpose.
+aiohttp==3.10.11
+
+# Jinja2 renders the dashboard templates; itsdangerous signs the session cookie
+# used by Starlette's SessionMiddleware.
+jinja2==3.1.4
+markupsafe==3.0.2
+itsdangerous==2.2.0
