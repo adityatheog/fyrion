@@ -193,14 +193,15 @@ def test_hand_ace_scores_as_eleven_then_reduces():
     assert make_hand("A", "A").total == 12
 
 
-def test_hand_is_soft_flags_a_reduced_ace():
-    # NOTE: this cog's ``is_soft`` marks a hand soft only once an ace has been
-    # *reduced* to 1, which is inverted from the usual blackjack sense (where a
-    # hand holding an 11-valued ace is the soft one). It drives only the display
-    # label, not any payout, so it is asserted here as-implemented rather than
-    # changed. Flagged in the Phase 6 report.
-    assert not make_hand("A", "6").is_soft  # ace still worth 11
-    assert make_hand("A", "6", "10").is_soft  # ace reduced to 1
+def test_hand_is_soft_flags_an_eleven_valued_ace():
+    # Standard blackjack sense: a hand is soft when it holds an ace still
+    # counting as 11 (it cannot bust on the next hit). Once every ace has been
+    # reduced to 1, the hand is hard.
+    assert make_hand("A", "6").is_soft  # soft 17, ace worth 11
+    assert make_hand("A", "A", "9").is_soft  # 11 + 1 + 9 == 21, one ace still 11
+    assert not make_hand("A", "6", "10").is_soft  # ace reduced to 1 -> hard 17
+    assert not make_hand("10", "7").is_soft  # no ace at all
+    assert not make_hand("K", "Q").is_soft
 
 
 def test_hand_blackjack_and_bust():

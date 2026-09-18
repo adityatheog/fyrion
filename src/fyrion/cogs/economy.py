@@ -431,8 +431,19 @@ class Hand:
 
     @property
     def is_soft(self) -> bool:
-        raw = sum(CARD_VALUES[rank] for rank, _ in self.cards)
-        return any(rank == "A" for rank, _ in self.cards) and raw != self.total
+        # Soft in the standard sense: an ace is still counted as 11 in the
+        # final total (so the hand cannot bust on the next hit). Mirror the
+        # ace-reduction in ``total`` and report whether any ace survives as 11.
+        total = 0
+        aces = 0
+        for rank, _ in self.cards:
+            total += CARD_VALUES[rank]
+            if rank == "A":
+                aces += 1
+        while total > BLACKJACK_TARGET and aces:
+            total -= 10
+            aces -= 1
+        return aces > 0
 
     @property
     def is_bust(self) -> bool:
