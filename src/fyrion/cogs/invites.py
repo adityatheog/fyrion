@@ -87,9 +87,16 @@ class Invites(commands.Cog):
         await self.repo.add_leave(member.guild.id, member.id)
 
     @app_commands.command(name="invites", description="Check how many members someone has invited.")
+    @app_commands.guild_only()
     @app_commands.describe(member="The member to check (defaults to yourself)")
-    async def invites_cmd(self, interaction: discord.Interaction, member: discord.Member = None) -> None:
-        assert interaction.guild_id is not None
+    async def invites_cmd(
+        self, interaction: discord.Interaction, member: discord.Member | None = None
+    ) -> None:
+        if interaction.guild_id is None:
+            await interaction.response.send_message(
+                "This command can only be used inside a server.", ephemeral=True
+            )
+            return
         target = member or interaction.user
         
         stats = await self.repo.get_stats(interaction.guild_id, target.id)

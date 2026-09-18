@@ -7,6 +7,10 @@ from discord.ext import commands
 
 from fyrion.bot import Fyrion
 
+# Discord's hard limit on the number of fields in a single embed.
+MAX_EMBED_FIELDS = 25
+
+
 class HelpCategorySelect(discord.ui.Select):
     def __init__(self, cogs_dict: dict[str, commands.Cog]) -> None:
         # Filter out hidden or event-only cogs without commands
@@ -38,15 +42,39 @@ class HelpCategorySelect(discord.ui.Select):
             color=discord.Color.blurple()
         )
         
+        fields: list[tuple[str, str]] = []
         for command in cog.get_app_commands():
             # Format group commands nicely (e.g. /mod kick, /config welcome)
             if isinstance(command, app_commands.Group):
                 for sub in command.commands:
-                    embed.add_field(name=f"/{command.name} {sub.name}", value=sub.description, inline=False)
+                    fields.append(
+                        (f"/{command.name} {sub.name}", sub.description or "—")
+                    )
             else:
-                embed.add_field(name=f"/{command.name}", value=command.description, inline=False)
-                
-        await interaction.response.edit_message(embed=embed)
+                fields.append((f"/{command.name}", command.description or "—"))
+
+        # Discord allows at most 25 fields per embed; a cog crossing that would
+        # otherwise make edit_message raise. Show the first 24 and summarize the
+        # rest rather than failing the whole dropdown selection.
+        overflow = 0
+        if len(fields) > MAX_EMBED_FIELDS:
+            overflow = len(fields) - (MAX_EMBED_FIELDS - 1)
+            fields = fields[: MAX_EMBED_FIELDS - 1]
+
+        for name, value in fields:
+            embed.add_field(name=name, value=value, inline=False)
+        if overflow:
+            embed.add_field(
+                name=f"…and {overflow} more",
+                value="Type `/` in the message box to browse the rest.",
+                inline=False,
+            )
+
+        try:
+            await interaction.response.edit_message(embed=embed)
+        except discord.HTTPException:
+            # The menu message expired or was dismissed; nothing to update.
+            pass
 
 class HelpView(discord.ui.View):
     def __init__(self, cogs_dict: dict[str, commands.Cog]) -> None:
