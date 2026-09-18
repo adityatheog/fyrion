@@ -39,7 +39,7 @@ PANEL_STATEMENTS: Final[tuple[str, ...]] = (
         created_by  INTEGER,
         updated_at  TEXT    NOT NULL
                     DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-        FOREIGN KEY (guild_id) REFERENCESguild_settings (guild_id)
+        FOREIGN KEY (guild_id) REFERENCES guild_settings (guild_id)
             ON DELETE CASCADE
     )
     """,
