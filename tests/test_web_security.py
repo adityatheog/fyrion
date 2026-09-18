@@ -129,6 +129,44 @@ def test_cookies_can_be_cleared():
     assert cleared == {security.SESSION_COOKIE, security.STATE_COOKIE}
 
 
+def _dashboard_ready(monkeypatch):
+    """Sets the minimum config for the dashboard rules to pass."""
+    monkeypatch.setattr(Config, "DISCORD_CLIENT_ID", "123456", raising=False)
+    monkeypatch.setattr(
+        Config, "DISCORD_CLIENT_SECRET", "a_real_client_secret", raising=False
+    )
+    monkeypatch.setattr(Config, "DASHBOARD_SECRET_KEY", "k" * 40, raising=False)
+    monkeypatch.setattr(
+        Config, "DASHBOARD_BASE_URL", "http://127.0.0.1:8080", raising=False
+    )
+    monkeypatch.setattr(Config, "DASHBOARD_ALLOWED_ORIGINS", (), raising=False)
+    monkeypatch.setattr(Config, "DASHBOARD_TRUSTED_HOSTS", ("localhost",), raising=False)
+
+
+def test_dashboard_validation_requires_a_signing_key(monkeypatch):
+    """The standalone runner forces DASHBOARD_ENABLED true so these rules fire;
+    a missing signing key must be rejected rather than falling back to an
+    ephemeral key."""
+    _dashboard_ready(monkeypatch)
+    monkeypatch.setattr(Config, "DASHBOARD_SECRET_KEY", None, raising=False)
+
+    issues = Config._validate_dashboard()
+    assert any("DASHBOARD_SECRET_KEY" in issue for issue in issues)
+
+
+def test_dashboard_validation_rejects_short_key(monkeypatch):
+    _dashboard_ready(monkeypatch)
+    monkeypatch.setattr(Config, "DASHBOARD_SECRET_KEY", "tooshort", raising=False)
+
+    issues = Config._validate_dashboard()
+    assert any("at least 32" in issue for issue in issues)
+
+
+def test_dashboard_validation_passes_when_configured(monkeypatch):
+    _dashboard_ready(monkeypatch)
+    assert Config._validate_dashboard() == []
+
+
 def test_secret_key_prefers_configuration(monkeypatch):
     monkeypatch.setattr(Config, "DASHBOARD_SECRET_KEY", "k" * 48, raising=False)
     assert security.secret_key() == security.secret_key()

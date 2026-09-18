@@ -20,6 +20,13 @@ def main() -> int:
     from fyrion.config import Config, ConfigurationError
     from fyrion.logging.logger import setup_logging
 
+    # This process exists to serve the dashboard, so the dashboard is enabled
+    # regardless of the environment variable. Forcing it true makes
+    # Config.validate() apply the dashboard-specific rules — a real signing key,
+    # https + Secure cookies in production, and non-wildcard origins/hosts —
+    # which it otherwise skips, leaving the API on an ephemeral key.
+    Config.DASHBOARD_ENABLED = True  # type: ignore[misc]
+
     try:
         # The dashboard needs OAuth credentials and a signing key; failing here
         # is far better than serving an API that cannot authenticate anyone.
@@ -30,14 +37,6 @@ def main() -> int:
 
     setup_logging()
     log = logging.getLogger("dashboard")
-
-    if not (Config.DISCORD_CLIENT_ID and Config.DISCORD_CLIENT_SECRET):
-        sys.stderr.write(
-            "CONFIGURATION ERROR:\n"
-            "  - DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET are required to "
-            "serve the dashboard.\n"
-        )
-        return 2
 
     try:
         import uvicorn
