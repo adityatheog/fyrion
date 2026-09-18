@@ -565,6 +565,36 @@ class AntiNukeCommands(commands.Cog):
             text, ephemeral=True, allowed_mentions=NO_MENTIONS
         )
 
+    async def _authorize(
+        self, interaction: discord.Interaction
+    ) -> discord.Guild | None:
+        """Re-checks ``Administrator`` server-side before any config change.
+
+        ``default_permissions`` only sets Discord's client-side default and a
+        server admin can override it through Integrations, so it is never the
+        authoritative gate. Arming or disarming nuke protection is the most
+        sensitive action here, so the invoker must genuinely hold
+        ``Administrator``. Returns the guild when the command may proceed,
+        otherwise replies with the refusal and returns ``None``.
+        """
+        guild = interaction.guild
+        member = interaction.user
+
+        if guild is None or not isinstance(member, discord.Member):
+            await self._reply(
+                interaction, "❌ This command can only be used inside a server."
+            )
+            return None
+
+        if not member.guild_permissions.administrator:
+            await self._reply(
+                interaction,
+                "❌ You need the `Administrator` permission to configure AntiNuke.",
+            )
+            return None
+
+        return guild
+
     @antinuke.command(
         name="enable", description="Turn AntiNuke protection on or off."
     )
@@ -572,8 +602,10 @@ class AntiNukeCommands(commands.Cog):
     async def enable_cmd(
         self, interaction: discord.Interaction, enabled: bool
     ) -> None:
-        guild_id = interaction.guild_id
-        assert guild_id is not None
+        guild = await self._authorize(interaction)
+        if guild is None:
+            return
+        guild_id = guild.id
         await self.repo.set_enabled(guild_id, enabled)
         self._invalidate(guild_id)
         state = "enabled" if enabled else "disabled"
@@ -599,8 +631,10 @@ class AntiNukeCommands(commands.Cog):
         action: app_commands.Choice[str],
         count: app_commands.Range[int, MIN_THRESHOLD, MAX_THRESHOLD],
     ) -> None:
-        guild_id = interaction.guild_id
-        assert guild_id is not None
+        guild = await self._authorize(interaction)
+        if guild is None:
+            return
+        guild_id = guild.id
         try:
             await self.repo.set_threshold(guild_id, action.value, int(count))
         except ValueError as exc:
@@ -622,8 +656,10 @@ class AntiNukeCommands(commands.Cog):
         interaction: discord.Interaction,
         action: app_commands.Choice[str],
     ) -> None:
-        guild_id = interaction.guild_id
-        assert guild_id is not None
+        guild = await self._authorize(interaction)
+        if guild is None:
+            return
+        guild_id = guild.id
         await self.repo.clear_threshold(guild_id, action.value)
         self._invalidate(guild_id)
         await self._reply(
@@ -639,8 +675,10 @@ class AntiNukeCommands(commands.Cog):
         interaction: discord.Interaction,
         seconds: app_commands.Range[int, MIN_WINDOW_SECONDS, MAX_WINDOW_SECONDS],
     ) -> None:
-        guild_id = interaction.guild_id
-        assert guild_id is not None
+        guild = await self._authorize(interaction)
+        if guild is None:
+            return
+        guild_id = guild.id
         try:
             await self.repo.save_settings(guild_id, {"window_seconds": int(seconds)})
         except ValueError as exc:
@@ -662,8 +700,10 @@ class AntiNukeCommands(commands.Cog):
         interaction: discord.Interaction,
         punishment: app_commands.Choice[str],
     ) -> None:
-        guild_id = interaction.guild_id
-        assert guild_id is not None
+        guild = await self._authorize(interaction)
+        if guild is None:
+            return
+        guild_id = guild.id
         await self.repo.save_settings(guild_id, {"punishment": punishment.value})
         self._invalidate(guild_id)
         await self._reply(
@@ -678,8 +718,10 @@ class AntiNukeCommands(commands.Cog):
     async def trust_cmd(
         self, interaction: discord.Interaction, actor: discord.User
     ) -> None:
-        guild_id = interaction.guild_id
-        assert guild_id is not None
+        guild = await self._authorize(interaction)
+        if guild is None:
+            return
+        guild_id = guild.id
         added = await self.repo.add_whitelist(
             guild_id, actor.id, added_by=interaction.user.id
         )
@@ -700,8 +742,10 @@ class AntiNukeCommands(commands.Cog):
     async def untrust_cmd(
         self, interaction: discord.Interaction, actor: discord.User
     ) -> None:
-        guild_id = interaction.guild_id
-        assert guild_id is not None
+        guild = await self._authorize(interaction)
+        if guild is None:
+            return
+        guild_id = guild.id
         removed = await self.repo.remove_whitelist(guild_id, actor.id)
         self._invalidate(guild_id)
         if removed:
@@ -717,8 +761,10 @@ class AntiNukeCommands(commands.Cog):
         name="status", description="Show AntiNuke settings and the trusted list."
     )
     async def status_cmd(self, interaction: discord.Interaction) -> None:
-        guild_id = interaction.guild_id
-        assert guild_id is not None
+        guild = await self._authorize(interaction)
+        if guild is None:
+            return
+        guild_id = guild.id
 
         settings = await self.repo.get_settings(guild_id)
         whitelist = await self.repo.get_whitelist(guild_id)

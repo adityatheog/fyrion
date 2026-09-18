@@ -51,6 +51,48 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
     # Helpers
     # ------------------------------------------------------------------
 
+    async def _authorize(
+        self, interaction: discord.Interaction, *permissions: str
+    ) -> tuple[discord.Guild, discord.Member] | None:
+        """Re-checks the invoker's permissions server-side.
+
+        ``default_permissions`` only sets Discord's client-side default and a
+        server admin can override it through Integrations, so it is never the
+        authoritative gate: every command re-checks the invoker's effective
+        guild permissions here. Returns ``(guild, member)`` when the command may
+        proceed, otherwise replies with the refusal and returns ``None``.
+        """
+        guild = interaction.guild
+        member = interaction.user
+
+        if guild is None or not isinstance(member, discord.Member):
+            await self._reject(
+                interaction, "This command can only be used inside a server."
+            )
+            return None
+
+        effective = member.guild_permissions
+        if not effective.administrator:
+            missing = [
+                name for name in permissions if not getattr(effective, name, False)
+            ]
+            if missing:
+                readable = ", ".join(
+                    f"`{name.replace('_', ' ').title()}`" for name in missing
+                )
+                await self._reject(
+                    interaction, f"You need {readable} to use that command."
+                )
+                return None
+
+        if guild.me is None:
+            await self._reject(
+                interaction, "I could not resolve my own membership in this server."
+            )
+            return None
+
+        return guild, member
+
     @staticmethod
     def _audit_reason(moderator: discord.abc.User, reason: str) -> str:
         return f"{moderator} ({moderator.id}): {reason}"[:AUDIT_REASON_LIMIT]
@@ -131,6 +173,8 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
         member: discord.Member,
         reason: str = "No reason provided",
     ) -> None:
+        if await self._authorize(interaction, "kick_members") is None:
+            return
         if error := self._hierarchy_error(interaction, member):
             await self._reject(interaction, error)
             return
@@ -164,10 +208,10 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
         reason: str = "No reason provided",
         delete_days: app_commands.Range[int, 0, 7] = 0,
     ) -> None:
-        guild = interaction.guild
-        if guild is None:
-            await self._reject(interaction, "This command can only be used in a server.")
+        context = await self._authorize(interaction, "ban_members")
+        if context is None:
             return
+        guild, _ = context
 
         # Hierarchy only applies to users currently in the guild; banning by ID
         # a user who already left has no role to compare against.
@@ -212,10 +256,10 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
         user: discord.User,
         reason: str = "No reason provided",
     ) -> None:
-        guild = interaction.guild
-        if guild is None:
-            await self._reject(interaction, "This command can only be used in a server.")
+        context = await self._authorize(interaction, "ban_members")
+        if context is None:
             return
+        guild, _ = context
 
         try:
             await guild.unban(user, reason=self._audit_reason(interaction.user, reason))
@@ -250,6 +294,8 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
         minutes: app_commands.Range[int, 1, MAX_TIMEOUT_MINUTES],
         reason: str = "No reason provided",
     ) -> None:
+        if await self._authorize(interaction, "moderate_members") is None:
+            return
         if error := self._hierarchy_error(interaction, member):
             await self._reject(interaction, error)
             return
@@ -290,6 +336,8 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
         member: discord.Member,
         reason: str = "No reason provided",
     ) -> None:
+        if await self._authorize(interaction, "moderate_members") is None:
+            return
         if error := self._hierarchy_error(interaction, member):
             await self._reject(interaction, error)
             return
@@ -323,6 +371,8 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
         member: discord.Member,
         reason: str,
     ) -> None:
+        if await self._authorize(interaction, "moderate_members") is None:
+            return
         if error := self._hierarchy_error(interaction, member):
             await self._reject(interaction, error)
             return
@@ -354,6 +404,8 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
     async def warnings_cmd(
         self, interaction: discord.Interaction, member: discord.Member
     ) -> None:
+        if await self._authorize(interaction, "moderate_members") is None:
+            return
         guild = member.guild
         records = await self.warnings.get_warnings(guild.id, member.id)
 
@@ -398,10 +450,10 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
     async def delwarn_cmd(
         self, interaction: discord.Interaction, warning_id: int
     ) -> None:
-        guild = interaction.guild
-        if guild is None:
-            await self._reject(interaction, "This command can only be used in a server.")
+        context = await self._authorize(interaction, "moderate_members")
+        if context is None:
             return
+        guild, _ = context
 
         # Scoped by guild inside the repository, so IDs from other servers
         # cannot be deleted from here.
@@ -425,6 +477,8 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
     ) -> None:
         # Wiping someone's record is a privileged action, so it obeys the same
         # hierarchy rules as any other moderation command.
+        if await self._authorize(interaction, "moderate_members") is None:
+            return
         if error := self._hierarchy_error(interaction, member):
             await self._reject(interaction, error)
             return
@@ -465,6 +519,8 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
         amount: app_commands.Range[int, 1, 100],
         member: discord.Member | None = None,
     ) -> None:
+        if await self._authorize(interaction, "manage_messages") is None:
+            return
         channel = interaction.channel
         if not isinstance(channel, (discord.TextChannel, discord.Thread)):
             await self._reject(
@@ -517,6 +573,8 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
         interaction: discord.Interaction,
         seconds: app_commands.Range[int, 0, MAX_SLOWMODE_SECONDS],
     ) -> None:
+        if await self._authorize(interaction, "manage_channels") is None:
+            return
         channel = interaction.channel
         if not isinstance(channel, (discord.TextChannel, discord.Thread)):
             await self._reject(
@@ -564,6 +622,8 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
         self, interaction: discord.Interaction, *, locked: bool, reason: str
     ) -> None:
         """Toggles ``send_messages`` for the default role in the current channel."""
+        if await self._authorize(interaction, "manage_channels") is None:
+            return
         guild = interaction.guild
         channel = interaction.channel
         if guild is None or not isinstance(channel, discord.TextChannel):
