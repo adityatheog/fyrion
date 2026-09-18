@@ -377,18 +377,37 @@ class LevelingRepository:
         now = utc_now_iso()
         cutoff = iso_from_now(-cooldown)
 
-        await self.db.execute(
-            "INSERT OR IGNORE INTO reputation (guild_id, user_id) VALUES (?, ?)",
-            (guild_id, giver_id),
-        )
-        changed = await self.db.execute(
-            "UPDATE reputation "
-            "   SET given = given + 1, last_given_at = ?, updated_at = ? "
-            " WHERE guild_id = ? AND user_id = ? "
-            "   AND (last_given_at IS NULL OR last_given_at <= ?)",
-            (now, now, guild_id, giver_id, cutoff),
-        )
+        # Claim the giver's cooldown and credit the recipient in one transaction
+        # so a failure between the two cannot burn the cooldown while losing the
+        # point. Use the yielded connection for every statement — calling
+        # self.db.execute() inside the write lock would deadlock.
+        async with self.db.transaction() as conn:
+            await conn.execute(
+                "INSERT OR IGNORE INTO reputation (guild_id, user_id) VALUES (?, ?)",
+                (guild_id, giver_id),
+            )
+            async with conn.execute(
+                "UPDATE reputation "
+                "   SET given = given + 1, last_given_at = ?, updated_at = ? "
+                " WHERE guild_id = ? AND user_id = ? "
+                "   AND (last_given_at IS NULL OR last_given_at <= ?)",
+                (now, now, guild_id, giver_id, cutoff),
+            ) as cursor:
+                changed = cursor.rowcount
 
+            if changed:
+                await conn.execute(
+                    "INSERT INTO reputation "
+                    "    (guild_id, user_id, points, last_received_at, updated_at) "
+                    "VALUES (?, ?, 1, ?, ?) "
+                    "ON CONFLICT (guild_id, user_id) DO UPDATE SET "
+                    "    points = points + 1, "
+                    "    last_received_at = excluded.last_received_at, "
+                    "    updated_at = excluded.updated_at",
+                    (guild_id, target_id, now, now),
+                )
+
+        # Reads for the response run outside the write lock.
         if not changed:
             row = await self.get_rep_row(guild_id, giver_id)
             retry = self._retry_after(row.get("last_given_at"), cooldown)
@@ -397,17 +416,6 @@ class LevelingRepository:
                 retry_after=retry,
                 total=await self.get_rep(guild_id, target_id),
             )
-
-        await self.db.execute(
-            "INSERT INTO reputation "
-            "    (guild_id, user_id, points, last_received_at, updated_at) "
-            "VALUES (?, ?, 1, ?, ?) "
-            "ON CONFLICT (guild_id, user_id) DO UPDATE SET "
-            "    points = points + 1, "
-            "    last_received_at = excluded.last_received_at, "
-            "    updated_at = excluded.updated_at",
-            (guild_id, target_id, now, now),
-        )
 
         return RepOutcome(
             granted=True,
