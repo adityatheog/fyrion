@@ -522,9 +522,9 @@ class DatabasePool:
 
     @staticmethod
     def _limit_clause(limit: int | None, offset: int | None) -> str:
-        if limit is None and offset is None:
-            return ""
-
+        # An absent limit still yields LIMIT MAX_FETCH_LIMIT rather than an
+        # unbounded scan, so the "no caller can pull a whole table into memory"
+        # guarantee holds even when neither bound is supplied.
         effective_limit = MAX_FETCH_LIMIT if limit is None else int(limit)
         if effective_limit <= 0 or effective_limit > MAX_FETCH_LIMIT:
             raise ValueError(

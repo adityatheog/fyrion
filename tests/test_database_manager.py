@@ -10,6 +10,7 @@ import pytest_asyncio
 from fyrion.database.manager import (
     DatabasePool,
     InsufficientFundsError,
+    MAX_FETCH_LIMIT,
     iso_from_now,
     utc_now_iso,
 )
@@ -399,6 +400,14 @@ async def test_fetch_many_limits_are_validated(pool):
         await pool.fetch_many("guild_settings", limit=0)
     with pytest.raises(ValueError):
         await pool.fetch_many("guild_settings", limit=10, offset=-1)
+
+
+def test_absent_limit_is_capped_not_unbounded():
+    """A fetch with no limit still emits LIMIT MAX_FETCH_LIMIT, so no caller can
+    scan an entire table into memory."""
+    assert DatabasePool._limit_clause(None, None) == f" LIMIT {MAX_FETCH_LIMIT}"
+    assert DatabasePool._limit_clause(None, 5) == f" LIMIT {MAX_FETCH_LIMIT} OFFSET 5"
+    assert DatabasePool._limit_clause(25, None) == " LIMIT 25"
 
 
 @pytest.mark.asyncio
