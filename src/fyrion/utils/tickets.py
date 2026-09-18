@@ -39,6 +39,7 @@ from typing import Any, Iterable, Mapping, Sequence
 
 import discord
 
+from fyrion.utils.emojis import parse_emoji
 from fyrion.utils.modlog import resolve_log_channel
 from fyrion.utils.permissions import missing_channel_permissions
 from fyrion.utils.transcripts import (
@@ -57,7 +58,6 @@ MAX_TOPICS = 5
 MAX_TOPIC_LABEL = 80
 MAX_PANEL_TITLE = 256
 MAX_PANEL_DESCRIPTION = 2000
-MAX_UNICODE_EMOJI_LENGTH = 16
 
 # Discord truncates audit log reasons at 512 characters and channel topics at
 # 1024.
@@ -101,38 +101,6 @@ _BACKGROUND_TASKS: set[asyncio.Task[Any]] = set()
 
 def button_style(name: Any) -> discord.ButtonStyle:
     return BUTTON_STYLES.get(str(name or "").lower(), discord.ButtonStyle.primary)
-
-
-def parse_emoji(bot: discord.Client, raw: str) -> str | None:
-    """Validates an operator-supplied emoji.
-
-    Raises:
-        ValueError: when the value is not a usable emoji.
-    """
-    text = (raw or "").strip()
-    if not text:
-        return None
-
-    partial = discord.PartialEmoji.from_str(text)
-
-    if partial.id is None:
-        candidate = partial.name or text
-        # A standard emoji is never plain ASCII and never long. Refusing both
-        # keeps arbitrary text out of the button and reaction APIs.
-        if candidate.isascii() or len(candidate) > MAX_UNICODE_EMOJI_LENGTH:
-            raise ValueError(
-                f"`{text[:32]}` is not an emoji. Use a single standard emoji, or "
-                "a custom emoji from a server I am also in."
-            )
-        return candidate
-
-    if bot.get_emoji(partial.id) is None:
-        raise ValueError(
-            "I cannot use that custom emoji. I must be a member of the server "
-            "it belongs to."
-        )
-    prefix = "a" if partial.animated else ""
-    return f"<{prefix}:{partial.name}:{partial.id}>"
 
 
 def sanitize_topics(raw: Any) -> list[dict[str, Any]]:
