@@ -63,6 +63,7 @@ from fyrion.database.repositories.automod_rules import (
     normalize_words,
 )
 from fyrion.utils.modlog import send_log
+from fyrion.utils.ratelimit import TokenBucket
 from fyrion.utils.patterns import (
     CONTENT_SCAN_LIMIT,
     INVITE_REGEX,
@@ -151,45 +152,8 @@ def compile_words(words: list[str], *, whole_word: bool) -> re.Pattern[str] | No
         return None
 
 
-@dataclass
-class _TokenBucket:
-    """Classic token bucket: ``capacity`` messages, refilled continuously.
-
-    One token is consumed per message. An empty bucket means the member is
-    sending faster than the configured allowance. Strikes track repeat offences
-    inside a rolling window, so a single burst never escalates on its own.
-    """
-
-    tokens: float
-    updated_at: float
-    strikes: int = 0
-    strike_window_ends_at: float = 0.0
-
-    def consume(self, capacity: float, refill_per_second: float, now: float) -> bool:
-        """Returns True when the message is within the allowance."""
-        elapsed = max(0.0, now - self.updated_at)
-        self.tokens = min(capacity, self.tokens + elapsed * refill_per_second)
-        self.updated_at = now
-
-        if self.tokens < 1.0:
-            return False
-
-        self.tokens -= 1.0
-        return True
-
-    def register_strike(self, now: float, window_seconds: float) -> int:
-        """Records a violation and returns the strike count in the window."""
-        if now > self.strike_window_ends_at:
-            self.strikes = 0
-        self.strikes += 1
-        self.strike_window_ends_at = now + window_seconds
-        return self.strikes
-
-    def is_idle(self, now: float) -> bool:
-        return (
-            now - self.updated_at > BUCKET_IDLE_TTL_SECONDS
-            and now > self.strike_window_ends_at
-        )
+# The message-spam limiter lives in ``utils.ratelimit`` so AntiNuke can reuse it.
+_TokenBucket = TokenBucket
 
 
 @dataclass
@@ -309,7 +273,9 @@ class AutoMod(commands.Cog):
         now = time.monotonic()
 
         stale_buckets = [
-            key for key, bucket in self._buckets.items() if bucket.is_idle(now)
+            key
+            for key, bucket in self._buckets.items()
+            if bucket.is_idle(now, BUCKET_IDLE_TTL_SECONDS)
         ]
         for key in stale_buckets:
             del self._buckets[key]
