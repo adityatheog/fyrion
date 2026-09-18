@@ -56,12 +56,13 @@ import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, ClassVar, Final, Mapping, Optional, Sequence
+from typing import Any, Final, Mapping, Optional, Sequence
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
+from fyrion.cogs._base import FyrionCog
 from fyrion.database.manager import (
     InsufficientFundsError,
     iso_from_now,
@@ -77,48 +78,6 @@ NO_MENTIONS: Final[discord.AllowedMentions] = discord.AllowedMentions.none()
 # else is: a crafted nickname can never make Fyrion ping a role or @everyone.
 NOTICE_MENTIONS: Final[discord.AllowedMentions] = discord.AllowedMentions(
     everyone=False, roles=False, users=True, replied_user=False
-)
-
-# ---------------------------------------------------------------------------
-# Schema owned by this module
-# ---------------------------------------------------------------------------
-
-SCHEMA_STATEMENTS: Final[tuple[str, ...]] = (
-    """
-    CREATE TABLE IF NOT EXISTS economy_shop_items (
-        item_id      INTEGER PRIMARY KEY AUTOINCREMENT,
-        guild_id     INTEGER NOT NULL,
-        item_key     TEXT    NOT NULL,
-        name         TEXT    NOT NULL,
-        description  TEXT,
-        price        INTEGER NOT NULL CHECK (price >= 0),
-        role_id      INTEGER,
-        stock        INTEGER CHECK (stock IS NULL OR stock >= 0),
-        max_per_user INTEGER CHECK (max_per_user IS NULL OR max_per_user > 0),
-        enabled      INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
-        created_by   INTEGER,
-        created_at   TEXT    NOT NULL
-                     DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-        UNIQUE (guild_id, item_key),
-        FOREIGN KEY (guild_id) REFERENCES guild_settings (guild_id)
-            ON DELETE CASCADE
-    )
-    """,
-    """
-    CREATE INDEX IF NOT EXISTS idx_economy_shop_guild
-        ON economy_shop_items (guild_id, enabled, price)
-    """,
-    """
-    CREATE TABLE IF NOT EXISTS economy_cooldowns (
-        guild_id     INTEGER NOT NULL,
-        user_id      INTEGER NOT NULL,
-        action       TEXT    NOT NULL,
-        available_at TEXT    NOT NULL,
-        PRIMARY KEY (guild_id, user_id, action),
-        FOREIGN KEY (guild_id) REFERENCES guild_settings (guild_id)
-            ON DELETE CASCADE
-    )
-    """,
 )
 
 # ---------------------------------------------------------------------------
@@ -591,34 +550,14 @@ class BlackjackGame:
 
 
 class EconomyRepository:
-    """Reads and writes wallets, cooldowns, shop items and inventories."""
+    """Reads and writes wallets, cooldowns, shop items and inventories.
 
-    # Applying the DDL once per process is enough: it is idempotent, and every
-    # pooled connection sees the same database file.
-    _schema_ready: ClassVar[bool] = False
+    The shop and cooldown tables now live in the core schema and are applied by
+    the connection pool at boot, so this repository no longer manages any DDL.
+    """
 
     def __init__(self, db: Any) -> None:
         self.db = db
-
-    # ------------------------------------------------------------------
-    # Schema
-    # ------------------------------------------------------------------
-
-    async def ensure_schema(self, *, force: bool = False) -> None:
-        if EconomyRepository._schema_ready and not force:
-            return
-        for statement in SCHEMA_STATEMENTS:
-            await self.db.execute(statement)
-        EconomyRepository._schema_ready = True
-
-    @classmethod
-    def reset_schema_flag(cls) -> None:
-        """Forces the next :meth:`ensure_schema` call to run. Used by tests."""
-        cls._schema_ready = False
-
-    @property
-    def schema_ready(self) -> bool:
-        return EconomyRepository._schema_ready
 
     # ------------------------------------------------------------------
     # Settings
@@ -852,7 +791,6 @@ class EconomyRepository:
         self, guild_id: int, user_id: int, action: str, seconds: int
     ) -> ClaimResult:
         """Claims a durable per-action cooldown."""
-        await self.ensure_schema()
         await self.db.ensure_guild(int(guild_id))
 
         now = utc_now_iso()
@@ -884,7 +822,6 @@ class EconomyRepository:
 
     async def release_action(self, guild_id: int, user_id: int, action: str) -> None:
         """Clears a cooldown that was claimed for an action that never ran."""
-        await self.ensure_schema()
         await self.db.execute(
             "UPDATE economy_cooldowns SET available_at = ? "
             " WHERE guild_id = ? AND user_id = ? AND action = ?",
@@ -898,7 +835,6 @@ class EconomyRepository:
     async def list_items(
         self, guild_id: int, *, enabled_only: bool = True, limit: int = SHOP_PAGE_LIMIT
     ) -> list[dict[str, Any]]:
-        await self.ensure_schema()
         query = (
             "SELECT item_id, guild_id, item_key, name, description, price, "
             "       role_id, stock, max_per_user, enabled "
@@ -914,7 +850,6 @@ class EconomyRepository:
         return [dict(row) for row in rows]
 
     async def get_item(self, guild_id: int, key: str) -> dict[str, Any] | None:
-        await self.ensure_schema()
         row = await self.db.fetchrow(
             "SELECT * FROM economy_shop_items WHERE guild_id = ? AND item_key = ?",
             (int(guild_id), str(key).lower()),
@@ -922,7 +857,6 @@ class EconomyRepository:
         return dict(row) if row is not None else None
 
     async def count_items(self, guild_id: int) -> int:
-        await self.ensure_schema()
         value = await self.db.fetchval(
             "SELECT COUNT(*) FROM economy_shop_items WHERE guild_id = ?",
             (int(guild_id),),
@@ -943,7 +877,6 @@ class EconomyRepository:
         max_per_user: int | None = None,
         created_by: int | None = None,
     ) -> dict[str, Any]:
-        await self.ensure_schema()
         await self.db.ensure_guild(int(guild_id))
 
         await self.db.execute(
@@ -978,7 +911,6 @@ class EconomyRepository:
         return saved
 
     async def delete_item(self, guild_id: int, key: str) -> bool:
-        await self.ensure_schema()
         removed = await self.db.execute(
             "DELETE FROM economy_shop_items WHERE guild_id = ? AND item_key = ?",
             (int(guild_id), str(key).lower()),
@@ -992,7 +924,6 @@ class EconomyRepository:
         both claim the last unit. ``stock`` is ``NULL`` for unlimited items, and
         ``NULL - n`` stays ``NULL``.
         """
-        await self.ensure_schema()
         changed = await self.db.execute(
             "UPDATE economy_shop_items SET stock = stock - ? "
             " WHERE item_id = ? AND enabled = 1 "
@@ -1003,7 +934,6 @@ class EconomyRepository:
 
     async def release_stock(self, item_id: int, quantity: int) -> None:
         """Returns reserved stock after a purchase failed."""
-        await self.ensure_schema()
         await self.db.execute(
             "UPDATE economy_shop_items SET stock = stock + ? "
             " WHERE item_id = ? AND stock IS NOT NULL",
@@ -1229,12 +1159,11 @@ class BlackjackView(discord.ui.View):
 # ---------------------------------------------------------------------------
 
 
-class Economy(commands.Cog):
+class Economy(FyrionCog, commands.Cog):
     """Currency, earning commands, gambling, a shop and inventories."""
 
     def __init__(self, bot: commands.Bot) -> None:
-        self.bot = bot
-        self.db: Any = bot.db  # type: ignore[attr-defined]
+        super().__init__(bot)
         self.repo = EconomyRepository(self.db)
         # SystemRandom so outcomes are not predictable from previous results.
         self._rng = random.SystemRandom()
@@ -1243,14 +1172,6 @@ class Economy(commands.Cog):
         self._settings_cache: dict[int, tuple[float, EconomySettings]] = {}
         # (guild_id, user_id) for members with a hand in progress.
         self._in_play: set[tuple[int, int]] = set()
-
-    async def cog_load(self) -> None:
-        try:
-            await self.repo.ensure_schema()
-        except Exception:
-            # Wallets live in the core schema and still work; only the shop and
-            # the crime/rob cooldowns depend on these tables.
-            log.exception("Could not prepare the economy shop and cooldown tables.")
 
     # ------------------------------------------------------------------
     # Settings cache
@@ -1286,59 +1207,6 @@ class Economy(commands.Cog):
 
         self._settings_cache[int(guild_id)] = (now + SETTINGS_TTL_SECONDS, settings)
         return settings
-
-    # ------------------------------------------------------------------
-    # Reply helpers
-    # ------------------------------------------------------------------
-
-    async def _respond(
-        self,
-        interaction: discord.Interaction,
-        message: str,
-        *,
-        ephemeral: bool = True,
-    ) -> None:
-        try:
-            if interaction.response.is_done():
-                await interaction.followup.send(
-                    message, ephemeral=ephemeral, allowed_mentions=NO_MENTIONS
-                )
-            else:
-                await interaction.response.send_message(
-                    message, ephemeral=ephemeral, allowed_mentions=NO_MENTIONS
-                )
-        except discord.NotFound:
-            log.debug("An economy interaction expired before it was answered.")
-        except discord.HTTPException as exc:
-            log.warning("Could not answer an economy interaction: %s", exc)
-
-    async def _send_embed(
-        self,
-        interaction: discord.Interaction,
-        embed: discord.Embed,
-        *,
-        ephemeral: bool = False,
-        mentions: discord.AllowedMentions = NO_MENTIONS,
-    ) -> None:
-        try:
-            if interaction.response.is_done():
-                await interaction.followup.send(
-                    embed=embed, ephemeral=ephemeral, allowed_mentions=mentions
-                )
-            else:
-                await interaction.response.send_message(
-                    embed=embed, ephemeral=ephemeral, allowed_mentions=mentions
-                )
-        except discord.NotFound:
-            log.debug("An economy interaction expired before it was answered.")
-        except discord.HTTPException as exc:
-            log.warning("Could not answer an economy interaction: %s", exc)
-
-    async def _reject(self, interaction: discord.Interaction, reason: str) -> None:
-        await self._respond(interaction, f"\u274c {reason}")
-
-    async def _note(self, interaction: discord.Interaction, reason: str) -> None:
-        await self._respond(interaction, f"\u2139\ufe0f {reason}")
 
     # ------------------------------------------------------------------
     # Authorization
@@ -1812,13 +1680,6 @@ class Economy(commands.Cog):
 
         await interaction.response.defer()
 
-        if not self.repo.schema_ready:
-            await self._reject(
-                interaction,
-                "This command is unavailable because its cooldown storage could "
-                "not be prepared.",
-            )
-            return
 
         try:
             result = await self.repo.claim_action(
@@ -1912,13 +1773,6 @@ class Economy(commands.Cog):
             return
         if member.guild.id != guild.id:
             await self._reject(interaction, "That member is not in this server.")
-            return
-        if not self.repo.schema_ready:
-            await self._reject(
-                interaction,
-                "This command is unavailable because its cooldown storage could "
-                "not be prepared.",
-            )
             return
 
         await interaction.response.defer()
@@ -3057,13 +2911,6 @@ class Economy(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
-        if not self.repo.schema_ready:
-            await self._reject(
-                interaction,
-                "The shop is unavailable because its storage could not be "
-                "prepared.",
-            )
-            return
 
         try:
             existing = await self.repo.get_item(guild.id, item_key)
@@ -3202,7 +3049,6 @@ __all__ = [
     "MAX_BET",
     "MIN_BET",
     "MAX_TRANSFER",
-    "SCHEMA_STATEMENTS",
     "SLOT_REELS",
     "blackjack_payout",
     "build_deck",

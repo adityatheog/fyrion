@@ -60,6 +60,17 @@ def test_discover_extensions_finds_shipped_cogs():
     )
 
 
+def test_discover_extensions_excludes_the_shared_base():
+    # ``_base`` holds FyrionCog, not an extension: it defines no ``setup`` and
+    # must never be loaded by ``discover_extensions`` (underscore-prefixed).
+    extensions = discover_extensions()
+
+    assert "fyrion.cogs._base" not in extensions
+    # The command-bearing cogs that now inherit from FyrionCog still discover.
+    for name in ("moderation", "economy", "admin"):
+        assert f"fyrion.cogs.{name}" in extensions
+
+
 def test_discover_extensions_rejects_a_non_package():
     with pytest.raises((RuntimeError, ModuleNotFoundError)):
         discover_extensions("fyrion.config")

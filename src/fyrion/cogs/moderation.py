@@ -13,12 +13,12 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
-from typing import Any
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
+from fyrion.cogs._base import NO_MENTIONS, FyrionCog
 from fyrion.database.repositories.guild_config import GuildConfigRepository
 from fyrion.database.repositories.warnings import WarningsRepository
 from fyrion.utils.permissions import can_moderate
@@ -34,17 +34,18 @@ AUDIT_REASON_LIMIT = 512
 # Slowmode is capped at six hours by the API.
 MAX_SLOWMODE_SECONDS = 21600
 
-NO_MENTIONS = discord.AllowedMentions.none()
 
-
-class Moderation(commands.GroupCog, name="mod"):
+class Moderation(FyrionCog, commands.GroupCog, name="mod"):
     """Server moderation commands."""
 
+    # Moderation replies are public by default (mod actions are announced);
+    # only refusals are ephemeral.
+    DEFAULT_EPHEMERAL = False
+
     def __init__(self, bot: commands.Bot) -> None:
-        self.bot = bot
-        db: Any = bot.db  # type: ignore[attr-defined]
-        self.warnings = WarningsRepository(db)
-        self.configs = GuildConfigRepository(db)
+        super().__init__(bot)
+        self.warnings = WarningsRepository(self.db)
+        self.configs = GuildConfigRepository(self.db)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -63,22 +64,6 @@ class Moderation(commands.GroupCog, name="mod"):
         if not isinstance(invoker, discord.Member):
             return "This command can only be used inside a server."
         return can_moderate(invoker, target)
-
-    async def _respond(
-        self, interaction: discord.Interaction, message: str, *, ephemeral: bool = False
-    ) -> None:
-        """Replies once, regardless of whether the interaction was deferred."""
-        if interaction.response.is_done():
-            await interaction.followup.send(
-                message, ephemeral=ephemeral, allowed_mentions=NO_MENTIONS
-            )
-        else:
-            await interaction.response.send_message(
-                message, ephemeral=ephemeral, allowed_mentions=NO_MENTIONS
-            )
-
-    async def _reject(self, interaction: discord.Interaction, reason: str) -> None:
-        await self._respond(interaction, f"\u274c {reason}", ephemeral=True)
 
     async def _log_action(
         self,
