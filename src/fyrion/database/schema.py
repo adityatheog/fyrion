@@ -266,6 +266,12 @@ CREATE TABLE IF NOT EXISTS economy_accounts (
 CREATE INDEX IF NOT EXISTS idx_economy_accounts_rich
     ON economy_accounts (guild_id, balance DESC);
 
+-- economy_leaderboard and the /balance rank both order by net worth
+-- (balance + bank); an expression index lets the planner read rows already
+-- sorted instead of building a temp b-tree per call.
+CREATE INDEX IF NOT EXISTS idx_economy_accounts_networth
+    ON economy_accounts (guild_id, (balance + bank) DESC, user_id ASC);
+
 CREATE TRIGGER IF NOT EXISTS trg_economy_accounts_touch
 AFTER UPDATE ON economy_accounts
 FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
