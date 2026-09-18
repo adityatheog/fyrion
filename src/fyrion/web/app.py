@@ -147,11 +147,12 @@ def _pool(request: Request) -> Any:
 
 
 def _client_ip(request: Request) -> str | None:
-    if Config.DASHBOARD_TRUST_PROXY:
-        forwarded = request.headers.get("x-forwarded-for")
-        if forwarded:
-            # Left-most entry is the original client.
-            return forwarded.split(",")[0].strip() or None
+    # When DASHBOARD_TRUST_PROXY is set, uvicorn is configured with
+    # proxy_headers + forwarded_allow_ips, so it has already parsed
+    # X-Forwarded-For against the trusted hop list and put the real client IP in
+    # request.client.host. Reading the raw header here would instead trust the
+    # left-most (client-supplied) entry, which a caller can rotate per request
+    # to defeat the auth/login rate limiter.
     return request.client.host if request.client else None
 
 

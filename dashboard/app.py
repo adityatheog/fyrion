@@ -350,13 +350,11 @@ def get_http(request: Request) -> httpx.AsyncClient:
 
 
 def client_ip(request: Request) -> str:
-    if Config.DASHBOARD_TRUST_PROXY:
-        forwarded = request.headers.get("x-forwarded-for")
-        if forwarded:
-            # The left-most entry is the original client.
-            candidate = forwarded.split(",")[0].strip()
-            if candidate:
-                return candidate
+    # uvicorn is started with proxy_headers + forwarded_allow_ips when
+    # DASHBOARD_TRUST_PROXY is set (see dashboard/__main__.py), so it has already
+    # resolved the trusted client IP into request.client.host. Reading the raw
+    # X-Forwarded-For here would trust the spoofable left-most entry, letting a
+    # caller rotate it per request to defeat the login/auth rate limiter.
     return request.client.host if request.client else "unknown"
 
 
