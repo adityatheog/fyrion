@@ -1,10 +1,11 @@
 """
 Audit logging cog.
 
-Mirrors gateway events into an audit channel as embeds. The destination is the
-same ``guild_configs.log_channel_id`` that the moderation cog writes to, so a
-server configures one channel and receives both moderator actions and raw
-events there.
+Mirrors gateway events into an audit channel as embeds. The destination is
+``guild_settings.audit_log_channel_id``, configured with ``/logs channel`` (or
+``/set-logchannel``). It is independent of the moderation log
+(``mod_log_channel_id``, set with ``/set-modlog``), so a server can route raw
+events and moderator actions to different channels.
 
 Limitations worth knowing:
 - ``on_message_delete`` and ``on_message_edit`` only fire for messages that are
@@ -25,8 +26,6 @@ from typing import Any, Sequence
 import discord
 from discord import app_commands
 from discord.ext import commands
-
-from fyrion.database.repositories.guild_config import GuildConfigRepository
 
 log = logging.getLogger("fyrion.cogs.logging")
 
@@ -68,8 +67,7 @@ class AuditLog(commands.Cog):
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        db: Any = bot.db  # type: ignore[attr-defined]
-        self.configs = GuildConfigRepository(db)
+        self.db: Any = bot.db  # type: ignore[attr-defined]
         # guild_id -> channel id, or None when logging is switched off. Cached
         # because several of these listeners run on the message hot path.
         self._channels: dict[int, int | None] = {}
@@ -87,13 +85,13 @@ class AuditLog(commands.Cog):
             return self._channels[guild_id]
 
         try:
-            config = await self.configs.get_config(guild_id)
+            settings = await self.db.get_guild_settings(guild_id)
         except Exception:
             # A database hiccup must not break unrelated event handling.
-            log.exception("Could not read the guild config for %s", guild_id)
+            log.exception("Could not read the guild settings for %s", guild_id)
             return None
 
-        raw = config.get("log_channel_id")
+        raw = settings.get("audit_log_channel_id")
         channel_id = int(raw) if raw else None
         self._channels[guild_id] = channel_id
         return channel_id
@@ -424,8 +422,7 @@ class LoggingCommands(commands.GroupCog, name="logs"):
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        db: Any = bot.db  # type: ignore[attr-defined]
-        self.configs = GuildConfigRepository(db)
+        self.db: Any = bot.db  # type: ignore[attr-defined]
 
     def _invalidate(self, guild_id: int) -> None:
         """Clears the listener cache so a change applies immediately."""
@@ -460,14 +457,14 @@ class LoggingCommands(commands.GroupCog, name="logs"):
             )
             return
 
-        await self.configs.update_config(
-            interaction.guild_id, "log_channel_id", channel.id
+        await self.db.update_guild_settings(
+            interaction.guild_id, audit_log_channel_id=channel.id
         )
         self._invalidate(interaction.guild_id)
 
         await interaction.response.send_message(
             f"\u2705 Audit logs will be sent to {channel.mention}. "
-            "Moderation actions are recorded there as well.",
+            "Moderation actions have their own channel; set it with `/set-modlog`.",
             ephemeral=True,
         )
 
@@ -477,12 +474,14 @@ class LoggingCommands(commands.GroupCog, name="logs"):
     async def disable_cmd(self, interaction: discord.Interaction) -> None:
         assert interaction.guild_id is not None
 
-        await self.configs.update_config(interaction.guild_id, "log_channel_id", None)
+        await self.db.update_guild_settings(
+            interaction.guild_id, audit_log_channel_id=None
+        )
         self._invalidate(interaction.guild_id)
 
         await interaction.response.send_message(
-            "\u2705 Audit logging **disabled**. Moderation logging is disabled too, "
-            "since both use this channel.",
+            "\u2705 Audit logging **disabled**. Moderation logging is unaffected; "
+            "manage it with `/set-modlog`.",
             ephemeral=True,
         )
 
@@ -491,8 +490,8 @@ class LoggingCommands(commands.GroupCog, name="logs"):
     @app_commands.default_permissions(manage_guild=True)
     async def status_cmd(self, interaction: discord.Interaction) -> None:
         assert interaction.guild_id is not None
-        config = await self.configs.get_config(interaction.guild_id)
-        channel_id = config.get("log_channel_id")
+        settings = await self.db.get_guild_settings(interaction.guild_id)
+        channel_id = settings.get("audit_log_channel_id")
 
         if not channel_id:
             await interaction.response.send_message(

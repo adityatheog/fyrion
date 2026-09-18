@@ -5,9 +5,11 @@ Three groups of functionality live here:
 
 * **Settings** (``/set-*``) write to ``guild_settings`` through the pooled data
   layer, which validates every column name against the schema allow-list and
-  binds every value as a SQL parameter. Where a legacy consumer still reads the
-  old ``guild_configs`` row (welcome channel, autorole, log channel), the write
-  is mirrored there too, so existing listeners keep working.
+  binds every value as a SQL parameter. The audit log
+  (``audit_log_channel_id``) and the moderation log (``mod_log_channel_id``)
+  are independent fields, so configuring one never changes the other. A couple
+  of settings (welcome channel, autorole) are still mirrored into the legacy
+  ``guild_configs`` row for listeners that predate the consolidation.
 * **Role and channel management** (``/role-*``, ``/channel-*``) which always
   runs through ``fyrion.utils.permissions`` before touching the API.
 * **Content tooling**: the interactive embed builder and reaction roles,
@@ -42,8 +44,14 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from fyrion.cogs._base import NO_MENTIONS, FyrionCog
 from fyrion.database.repositories.guild_config import GuildConfigRepository
 from fyrion.utils.colors import parse_color
+from fyrion.utils.emojis import (
+    MAX_UNICODE_EMOJI_LENGTH,
+    emoji_storage_key,
+    parse_emoji_input,
+)
 from fyrion.utils.modlog import send_log
 from fyrion.utils.permissions import (
     can_manage_member_roles,
@@ -54,8 +62,6 @@ from fyrion.views.confirm import ConfirmView
 from fyrion.views.embeds import EmbedBuilderModal
 
 log = logging.getLogger("fyrion.cogs.admin")
-
-NO_MENTIONS = discord.AllowedMentions.none()
 
 # Discord truncates audit log reasons at 512 characters.
 AUDIT_REASON_LIMIT = 512
@@ -68,7 +74,6 @@ MAX_ROLE_NAME = 100
 MAX_CHANNEL_NAME = 100
 MAX_TOPIC = 1024
 MAX_SLOWMODE = 21600
-MAX_UNICODE_EMOJI_LENGTH = 16
 MAX_GROUP_KEY = 32
 
 # ``/role-all`` edits one member per API call. The cap keeps a single invocation
@@ -93,92 +98,22 @@ RoleAction = Literal["add", "remove"]
 RoleScope = Literal["humans", "bots", "everyone"]
 
 
-def emoji_storage_key(emoji: discord.PartialEmoji | discord.Emoji | str) -> str:
-    """Returns the canonical database key for an emoji.
-
-    Unicode emoji are stored verbatim; custom emoji as ``name:id``. The id is
-    what actually identifies a custom emoji, so lookups fall back to matching on
-    the id alone when an emoji has been renamed since the mapping was created.
-    """
-    if isinstance(emoji, str):
-        return emoji
-    if emoji.id is None:
-        return emoji.name or ""
-    return f"{emoji.name}:{emoji.id}"
-
-
-def parse_emoji_input(
-    bot: commands.Bot, raw: str
-) -> tuple[discord.PartialEmoji | str, str]:
-    """Parses operator input into ``(reaction_argument, storage_key)``.
-
-    Raises:
-        ValueError: when the value is not a usable emoji.
-    """
-    text = raw.strip()
-    if not text:
-        raise ValueError("No emoji was supplied.")
-
-    partial = discord.PartialEmoji.from_str(text)
-
-    if partial.id is None:
-        candidate = partial.name or text
-        # A standard emoji is never plain ASCII, and never long. Rejecting both
-        # keeps arbitrary text out of the reaction API.
-        if candidate.isascii() or len(candidate) > MAX_UNICODE_EMOJI_LENGTH:
-            raise ValueError(
-                "That is not an emoji. Provide a single standard emoji, or a "
-                "custom emoji from a server I am also in."
-            )
-        return candidate, candidate
-
-    if bot.get_emoji(partial.id) is None:
-        raise ValueError(
-            "I cannot use that custom emoji. I must be a member of the server "
-            "it belongs to."
-        )
-    return partial, emoji_storage_key(partial)
-
-
 def _truncate(text: str, limit: int = FIELD_LIMIT) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - 1] + "\u2026"
 
 
-class Admin(commands.Cog):
+class Admin(FyrionCog, commands.Cog):
     """Server settings, role and channel management, embeds and reaction roles."""
 
     def __init__(self, bot: commands.Bot) -> None:
-        self.bot = bot
-        self.db: Any = bot.db  # type: ignore[attr-defined]
+        super().__init__(bot)
         self.legacy = GuildConfigRepository(self.db)
 
     # ------------------------------------------------------------------
     # Shared helpers
     # ------------------------------------------------------------------
-
-    async def _respond(
-        self,
-        interaction: discord.Interaction,
-        message: str,
-        *,
-        ephemeral: bool = True,
-    ) -> None:
-        if interaction.response.is_done():
-            await interaction.followup.send(
-                message, ephemeral=ephemeral, allowed_mentions=NO_MENTIONS
-            )
-        else:
-            await interaction.response.send_message(
-                message, ephemeral=ephemeral, allowed_mentions=NO_MENTIONS
-            )
-
-    async def _reject(self, interaction: discord.Interaction, reason: str) -> None:
-        await self._respond(interaction, f"\u274c {reason}")
-
-    async def _ok(self, interaction: discord.Interaction, message: str) -> None:
-        await self._respond(interaction, f"\u2705 {message}")
 
     async def _authorize(
         self, interaction: discord.Interaction, *permissions: str
@@ -378,7 +313,6 @@ class Admin(commands.Cog):
 
         if channel is None:
             await self.db.update_guild_settings(guild.id, audit_log_channel_id=None)
-            await self._mirror_legacy(guild.id, "log_channel_id", None)
             self._invalidate_audit_cache(guild.id)
             await self._audit(guild, member, "Audit log disabled", "Channel cleared")
             await self._ok(interaction, "Audit logging is now **disabled**.")
@@ -391,7 +325,6 @@ class Admin(commands.Cog):
         await self.db.update_guild_settings(
             guild.id, audit_log_channel_id=channel.id
         )
-        await self._mirror_legacy(guild.id, "log_channel_id", channel.id)
         self._invalidate_audit_cache(guild.id)
 
         await self._audit(
@@ -399,8 +332,8 @@ class Admin(commands.Cog):
         )
         await self._ok(
             interaction,
-            f"Audit events will be sent to {channel.mention}. Moderation actions "
-            "go there too unless `/set-modlog` points somewhere else.",
+            f"Audit events will be sent to {channel.mention}. The moderation log "
+            "is separate; set it with `/set-modlog`.",
         )
 
     @app_commands.command(
@@ -1724,7 +1657,7 @@ class Admin(commands.Cog):
         return True
 
 
-class ReactionRoleEvents(commands.Cog):
+class ReactionRoleEvents(FyrionCog, commands.Cog):
     """Applies the reaction role mappings created by ``/reactionrole-add``.
 
     Raw events are used so mappings keep working after a restart, when the
@@ -1736,8 +1669,7 @@ class ReactionRoleEvents(commands.Cog):
     """
 
     def __init__(self, bot: commands.Bot) -> None:
-        self.bot = bot
-        self.db: Any = bot.db  # type: ignore[attr-defined]
+        super().__init__(bot)
 
     # ------------------------------------------------------------------
     # Listeners
