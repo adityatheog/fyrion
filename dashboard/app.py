@@ -206,8 +206,18 @@ class SlidingWindowLimiter:
         ]
         for key in stale:
             del self._hits[key]
-        if len(self._hits) >= self.max_keys:
-            self._hits.clear()
+        if len(self._hits) < self.max_keys:
+            return
+        # Every bucket is still active. Drop the least-recently-used entries
+        # rather than clearing the whole table: a full clear would reset every
+        # caller's counters (including a flooder's) under the exact load the
+        # limiter exists to handle. Evict a batch so this need not run again on
+        # the very next request.
+        overflow = len(self._hits) - self.max_keys + 1
+        to_drop = max(overflow, self.max_keys // 10)
+        oldest = sorted(self._hits, key=lambda key: self._hits[key][-1])[:to_drop]
+        for key in oldest:
+            del self._hits[key]
 
 
 # ---------------------------------------------------------------------------
