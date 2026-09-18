@@ -148,3 +148,31 @@ async def test_audit_and_mod_log_are_independent(db_manager):
     settings = await db_manager.get_guild_settings(9001)
     assert settings["mod_log_channel_id"] == 444
     assert settings["audit_log_channel_id"] == 333
+
+
+@pytest.mark.asyncio
+async def test_delete_guild_clears_legacy_children(db_manager):
+    """delete_guild must remove the guild_configs parent too, so legacy tables
+    (warnings, whitelists, invite_stats, ...) that cascade from it do not orphan.
+    """
+    warnings = WarningsRepository(db_manager)
+    security = SecurityRepository(db_manager)
+    invites = InviteRepository(db_manager)
+
+    await warnings.add_warning(
+        guild_id=6060, user_id=1, moderator_id=2, reason="test"
+    )
+    await security.add_whitelist(6060, 7001, "role")
+    await invites.add_join(guild_id=6060, joined_user_id=3, inviter_id=4)
+
+    await db_manager.delete_guild(6060)
+
+    assert await warnings.get_warnings(guild_id=6060, user_id=1) == []
+    assert await security.get_whitelists(6060) == []
+    # The parent guild_configs row is gone, so a fresh read starts clean.
+    assert (
+        await db_manager.fetchrow(
+            "SELECT 1 FROM guild_configs WHERE guild_id = ?", (6060,)
+        )
+        is None
+    )

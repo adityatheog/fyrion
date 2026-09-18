@@ -816,6 +816,12 @@ class DatabasePool:
             await conn.execute(
                 "DELETE FROM guild_settings WHERE guild_id = ?", (guild_id,)
             )
+            # Legacy tables (warnings, whitelists, ticket_configs, invite_stats,
+            # member_inviters) cascade from guild_configs, not guild_settings, so
+            # that parent row must be removed too or their rows orphan forever.
+            await conn.execute(
+                "DELETE FROM guild_configs WHERE guild_id = ?", (guild_id,)
+            )
 
     # ------------------------------------------------------------------
     # moderation_cases
