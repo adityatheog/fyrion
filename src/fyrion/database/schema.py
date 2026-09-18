@@ -9,8 +9,8 @@ migration instead.
 Two groups of statements live here:
 
 * ``LEGACY_SCHEMA`` keeps the original tables (``guild_configs``, ``warnings``,
-  ``whitelists``, ``automod_configs``, ``ticket_configs``, ``invite_stats``,
-  ``member_inviters``) so the repositories written against them keep working.
+  ``whitelists``, ``ticket_configs``, ``invite_stats``, ``member_inviters``) so
+  the repositories written against them keep working.
   The original ``tickets`` table moved into ``CORE_SCHEMA``, which is a strict
   superset of it: the columns the old repository reads and writes
   (``guild_id``, ``channel_id``, ``user_id``, ``status``, ``created_at``) are
@@ -41,7 +41,7 @@ from typing import Final
 
 # Bumped whenever CORE_SCHEMA changes in a way operators should notice. Stored
 # in ``PRAGMA user_version`` and in ``schema_meta`` by the connection pool.
-SCHEMA_VERSION: Final[int] = 2
+SCHEMA_VERSION: Final[int] = 4
 
 # Portable "now" expression. Kept in one place so every default matches.
 _NOW: Final[str] = "strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
@@ -80,23 +80,6 @@ CREATE TABLE IF NOT EXISTS whitelists (
 
 CREATE INDEX IF NOT EXISTS idx_whitelists_guild
     ON whitelists (guild_id);
-
-CREATE TABLE IF NOT EXISTS automod_configs (
-    guild_id INTEGER PRIMARY KEY,
-    enabled BOOLEAN NOT NULL DEFAULT 1,
-    anti_spam_enabled BOOLEAN NOT NULL DEFAULT 0,
-    spam_message_limit INTEGER NOT NULL DEFAULT 5,
-    spam_interval_seconds INTEGER NOT NULL DEFAULT 5,
-    spam_strike_limit INTEGER NOT NULL DEFAULT 3,
-    spam_timeout_seconds INTEGER NOT NULL DEFAULT 300,
-    anti_invite_enabled BOOLEAN NOT NULL DEFAULT 0,
-    link_filter_enabled BOOLEAN NOT NULL DEFAULT 0,
-    caps_filter_enabled BOOLEAN NOT NULL DEFAULT 0,
-    caps_threshold_percent INTEGER NOT NULL DEFAULT 70,
-    caps_min_length INTEGER NOT NULL DEFAULT 10,
-    log_channel_id INTEGER,
-    FOREIGN KEY (guild_id) REFERENCES guild_configs (guild_id) ON DELETE CASCADE
-);
 
 CREATE TABLE IF NOT EXISTS ticket_configs (
     guild_id INTEGER PRIMARY KEY,
@@ -496,6 +479,88 @@ CREATE INDEX IF NOT EXISTS idx_dashboard_sessions_user
 
 CREATE INDEX IF NOT EXISTS idx_dashboard_sessions_expiry
     ON dashboard_sessions (expires_at);
+
+-- --------------------------------------------------------------------------
+-- antinuke_settings: one row per guild. Thresholds are "N actions of this
+-- kind by one actor within window_seconds triggers the punishment". A NULL
+-- threshold disables detection for that action while leaving the others armed.
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS antinuke_settings (
+    guild_id             INTEGER PRIMARY KEY,
+    enabled              INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+    window_seconds       INTEGER NOT NULL DEFAULT 30 CHECK (window_seconds > 0),
+    punishment           TEXT    NOT NULL DEFAULT 'strip_roles' CHECK (punishment IN (
+                             'strip_roles', 'kick', 'ban'
+                         )),
+    ban_threshold        INTEGER CHECK (ban_threshold IS NULL OR ban_threshold > 0),
+    kick_threshold       INTEGER CHECK (kick_threshold IS NULL OR kick_threshold > 0),
+    channel_delete_threshold INTEGER CHECK (channel_delete_threshold IS NULL OR channel_delete_threshold > 0),
+    channel_create_threshold INTEGER CHECK (channel_create_threshold IS NULL OR channel_create_threshold > 0),
+    role_delete_threshold    INTEGER CHECK (role_delete_threshold IS NULL OR role_delete_threshold > 0),
+    role_create_threshold    INTEGER CHECK (role_create_threshold IS NULL OR role_create_threshold > 0),
+    webhook_create_threshold INTEGER CHECK (webhook_create_threshold IS NULL OR webhook_create_threshold > 0),
+    created_at           TEXT    NOT NULL DEFAULT ({_NOW}),
+    updated_at           TEXT    NOT NULL DEFAULT ({_NOW}),
+    FOREIGN KEY (guild_id) REFERENCES guild_settings (guild_id) ON DELETE CASCADE
+);
+
+CREATE TRIGGER IF NOT EXISTS trg_antinuke_settings_touch
+AFTER UPDATE ON antinuke_settings
+FOR EACH ROW WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+    UPDATE antinuke_settings SET updated_at = {_NOW} WHERE guild_id = NEW.guild_id;
+END;
+
+-- --------------------------------------------------------------------------
+-- antinuke_whitelist: actors AntiNuke must never punish (trusted admins and
+-- bots), on top of the always-exempt guild owner and Fyrion itself.
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS antinuke_whitelist (
+    guild_id   INTEGER NOT NULL,
+    actor_id   INTEGER NOT NULL,
+    added_by   INTEGER,
+    created_at TEXT    NOT NULL DEFAULT ({_NOW}),
+    PRIMARY KEY (guild_id, actor_id),
+    FOREIGN KEY (guild_id) REFERENCES guild_settings (guild_id) ON DELETE CASCADE
+);
+
+-- --------------------------------------------------------------------------
+-- economy_shop_items: one row per purchasable item per guild. Stock is
+-- decremented with a guarded UPDATE so an item can never be oversold.
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS economy_shop_items (
+    item_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id     INTEGER NOT NULL,
+    item_key     TEXT    NOT NULL,
+    name         TEXT    NOT NULL,
+    description  TEXT,
+    price        INTEGER NOT NULL CHECK (price >= 0),
+    role_id      INTEGER,
+    stock        INTEGER CHECK (stock IS NULL OR stock >= 0),
+    max_per_user INTEGER CHECK (max_per_user IS NULL OR max_per_user > 0),
+    enabled      INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+    created_by   INTEGER,
+    created_at   TEXT    NOT NULL DEFAULT ({_NOW}),
+    UNIQUE (guild_id, item_key),
+    FOREIGN KEY (guild_id) REFERENCES guild_settings (guild_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_economy_shop_guild
+    ON economy_shop_items (guild_id, enabled, price);
+
+-- --------------------------------------------------------------------------
+-- economy_cooldowns: durable per-action cooldowns for /crime and /rob, which
+-- have no dedicated column on the account row. Claims use a conditional
+-- UPDATE, never a read-then-write, so two invocations cannot both pass.
+-- --------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS economy_cooldowns (
+    guild_id     INTEGER NOT NULL,
+    user_id      INTEGER NOT NULL,
+    action       TEXT    NOT NULL,
+    available_at TEXT    NOT NULL,
+    PRIMARY KEY (guild_id, user_id, action),
+    FOREIGN KEY (guild_id) REFERENCES guild_settings (guild_id) ON DELETE CASCADE
+);
 """
 
 
@@ -705,11 +770,52 @@ TABLE_COLUMNS: Final[dict[str, frozenset[str]]] = {
             "revoked_at",
         }
     ),
+    "antinuke_settings": frozenset(
+        {
+            "guild_id",
+            "enabled",
+            "window_seconds",
+            "punishment",
+            "ban_threshold",
+            "kick_threshold",
+            "channel_delete_threshold",
+            "channel_create_threshold",
+            "role_delete_threshold",
+            "role_create_threshold",
+            "webhook_create_threshold",
+            "created_at",
+            "updated_at",
+        }
+    ),
+    "antinuke_whitelist": frozenset(
+        {"guild_id", "actor_id", "added_by", "created_at"}
+    ),
+    "economy_shop_items": frozenset(
+        {
+            "item_id",
+            "guild_id",
+            "item_key",
+            "name",
+            "description",
+            "price",
+            "role_id",
+            "stock",
+            "max_per_user",
+            "enabled",
+            "created_by",
+            "created_at",
+        }
+    ),
+    "economy_cooldowns": frozenset(
+        {"guild_id", "user_id", "action", "available_at"}
+    ),
 }
 
 # Default conflict target for upserts.
 PRIMARY_KEYS: Final[dict[str, tuple[str, ...]]] = {
     "schema_meta": ("key",),
+    "economy_shop_items": ("item_id",),
+    "economy_cooldowns": ("guild_id", "user_id", "action"),
     "guild_settings": ("guild_id",),
     "moderation_cases": ("case_id",),
     "automod_rules": ("rule_id",),
@@ -722,6 +828,8 @@ PRIMARY_KEYS: Final[dict[str, tuple[str, ...]]] = {
     "custom_commands": ("command_id",),
     "reaction_roles": ("entry_id",),
     "dashboard_sessions": ("session_id",),
+    "antinuke_settings": ("guild_id",),
+    "antinuke_whitelist": ("guild_id", "actor_id"),
 }
 
 # Tables whose rows require a ``guild_settings`` parent row to exist first.
@@ -736,6 +844,10 @@ GUILD_SCOPED_TABLES: Final[frozenset[str]] = frozenset(
         "tickets",
         "custom_commands",
         "reaction_roles",
+        "antinuke_settings",
+        "antinuke_whitelist",
+        "economy_shop_items",
+        "economy_cooldowns",
     }
 )
 
@@ -781,6 +893,20 @@ GIVEAWAY_STATUSES: Final[frozenset[str]] = frozenset({"active", "ended", "cancel
 REACTION_ROLE_MODES: Final[frozenset[str]] = frozenset(
     {"toggle", "add_only", "remove_only", "unique"}
 )
+# Mirrors the CHECK constraint on antinuke_settings.punishment.
+ANTINUKE_PUNISHMENTS: Final[frozenset[str]] = frozenset(
+    {"strip_roles", "kick", "ban"}
+)
+# The per-action threshold columns AntiNuke watches, mapped to a human label.
+ANTINUKE_ACTIONS: Final[dict[str, str]] = {
+    "ban": "Member bans",
+    "kick": "Member kicks",
+    "channel_delete": "Channel deletions",
+    "channel_create": "Channel creations",
+    "role_delete": "Role deletions",
+    "role_create": "Role creations",
+    "webhook_create": "Webhook creations",
+}
 
 __all__ = [
     "SCHEMA_VERSION",
@@ -796,4 +922,6 @@ __all__ = [
     "TICKET_STATUSES",
     "GIVEAWAY_STATUSES",
     "REACTION_ROLE_MODES",
+    "ANTINUKE_PUNISHMENTS",
+    "ANTINUKE_ACTIONS",
 ]

@@ -439,6 +439,16 @@ class DatabasePool:
             raise ValueError(f"Unknown table: {table!r}") from None
 
     @classmethod
+    def _check_table(cls, table: str) -> None:
+        """Rejects any table not in the allow-list before SQL is built.
+
+        The column-level helpers only run when there are columns to check, so a
+        no-column/no-where path (e.g. ``fetch_one(table, {})``) would otherwise
+        never validate the table name. Call this first in every public helper.
+        """
+        cls._columns_for(table)
+
+    @classmethod
     def _check_columns(cls, table: str, columns: Iterable[str]) -> None:
         allowed = cls._columns_for(table)
         unknown = sorted(set(columns) - allowed)
@@ -554,6 +564,7 @@ class DatabasePool:
         """Inserts one row and returns its rowid (None when nothing was written)."""
         if not values:
             raise ValueError("insert() requires at least one column.")
+        self._check_table(table)
         self._check_columns(table, values)
 
         clause = _CONFLICT_CLAUSES.get(on_conflict.lower())
@@ -594,6 +605,7 @@ class DatabasePool:
         """
         if not values:
             raise ValueError("upsert() requires at least one column.")
+        self._check_table(table)
         self._check_columns(table, values)
 
         keys = tuple(conflict_columns) if conflict_columns else PRIMARY_KEYS[table]
@@ -635,6 +647,7 @@ class DatabasePool:
         order_by: str | Sequence[str] | None = None,
     ) -> dict[str, Any] | None:
         """Returns a single row as a plain dict, or None."""
+        self._check_table(table)
         selection = self._select_columns(table, columns)
         where_sql, params = self._where_clause(table, where)
         order_sql = self._order_clause(table, order_by)
@@ -655,6 +668,7 @@ class DatabasePool:
         offset: int | None = None,
     ) -> list[dict[str, Any]]:
         """Returns matching rows as plain dicts."""
+        self._check_table(table)
         selection = self._select_columns(table, columns)
         where_sql, params = self._where_clause(table, where)
         order_sql = self._order_clause(table, order_by)
@@ -677,6 +691,7 @@ class DatabasePool:
         """Updates matching rows and returns how many changed."""
         if not values:
             raise ValueError("update() requires at least one column.")
+        self._check_table(table)
         if not where and not allow_full_table:
             raise ValueError(
                 "Refusing to update every row; pass a filter or "
@@ -699,6 +714,7 @@ class DatabasePool:
         allow_full_table: bool = False,
     ) -> int:
         """Deletes matching rows and returns how many were removed."""
+        self._check_table(table)
         if not where and not allow_full_table:
             raise ValueError(
                 "Refusing to delete every row; pass a filter or "
@@ -713,12 +729,14 @@ class DatabasePool:
         self, table: str, where: Mapping[str, Any] | None = None
     ) -> int:
         """Counts matching rows."""
+        self._check_table(table)
         where_sql, params = self._where_clause(table, where)
         query = f"SELECT COUNT(*) FROM {_quote(table)}{where_sql}"
         return int(await self.fetchval(query, params, default=0))
 
     async def exists(self, table: str, where: Mapping[str, Any]) -> bool:
         """Returns True when at least one row matches."""
+        self._check_table(table)
         where_sql, params = self._where_clause(table, where)
         query = f"SELECT 1 FROM {_quote(table)}{where_sql} LIMIT 1"
         return await self.fetchrow(query, params) is not None
@@ -737,6 +755,7 @@ class DatabasePool:
         """
         if not where:
             raise ValueError("increment() requires a filter.")
+        self._check_table(table)
         self._check_columns(table, [column])
         where_sql, params = self._where_clause(table, where)
         quoted = _quote(column)
@@ -750,18 +769,16 @@ class DatabasePool:
     # ------------------------------------------------------------------
 
     async def ensure_guild(self, guild_id: int) -> None:
-        """Creates the parent rows a guild needs, if they are missing.
+        """Creates the ``guild_settings`` parent row for a guild, if missing.
 
-        ``guild_configs`` is written too so the legacy repositories, whose
-        foreign keys still point at it, keep working.
+        Every guild-scoped core table cascades from ``guild_settings``, so this
+        one insert is enough. The few remaining legacy repositories that still
+        hold a foreign key onto ``guild_configs`` create their own parent row
+        (``INSERT OR IGNORE INTO guild_configs``) before writing.
         """
         async with self.transaction() as conn:
             await conn.execute(
                 "INSERT OR IGNORE INTO guild_settings (guild_id) VALUES (?)",
-                (int(guild_id),),
-            )
-            await conn.execute(
-                "INSERT OR IGNORE INTO guild_configs (guild_id) VALUES (?)",
                 (int(guild_id),),
             )
 
@@ -789,9 +806,6 @@ class DatabasePool:
             await conn.execute("DELETE FROM tickets WHERE guild_id = ?", (guild_id,))
             await conn.execute(
                 "DELETE FROM guild_settings WHERE guild_id = ?", (guild_id,)
-            )
-            await conn.execute(
-                "DELETE FROM guild_configs WHERE guild_id = ?", (guild_id,)
             )
 
     # ------------------------------------------------------------------

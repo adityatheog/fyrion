@@ -1,17 +1,26 @@
 """
 Security and whitelist repository.
 """
+from typing import Any
+
 import aiosqlite
-from fyrion.database.connection import DatabaseManager
 
 class SecurityRepository:
-    def __init__(self, db: DatabaseManager):
+    def __init__(self, db: Any):
         self.db = db
 
     async def add_whitelist(self, guild_id: int, entity_id: int, entity_type: str) -> None:
         """Adds an entity to the anti-link whitelist. Ignores duplicates."""
+        # ``whitelists`` has a foreign key onto ``guild_configs``, so make sure
+        # the parent row exists before inserting. A brand-new guild may never
+        # have had one created, and an INSERT OR IGNORE would otherwise silently
+        # drop the whitelist entry when the constraint fails.
+        await self.db.execute(
+            "INSERT OR IGNORE INTO guild_configs (guild_id) VALUES (?)",
+            (guild_id,),
+        )
         query = """
-            INSERT OR IGNORE INTO whitelists (guild_id, entity_id, entity_type) 
+            INSERT OR IGNORE INTO whitelists (guild_id, entity_id, entity_type)
             VALUES (?, ?, ?)
         """
         await self.db.execute(query, (guild_id, entity_id, entity_type))

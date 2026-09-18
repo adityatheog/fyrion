@@ -75,6 +75,21 @@ async def test_unknown_table_and_column_are_rejected(pool):
 
 
 @pytest.mark.asyncio
+async def test_unknown_table_rejected_on_no_column_no_where_paths(pool):
+    """Table validation must run even when there is no column or filter to check."""
+    with pytest.raises(ValueError):
+        await pool.fetch_one("nonexistent_table", {})
+    with pytest.raises(ValueError):
+        await pool.fetch_many("nonexistent_table")
+    with pytest.raises(ValueError):
+        await pool.count("nonexistent_table")
+    with pytest.raises(ValueError):
+        await pool.exists("nonexistent_table", {})
+    with pytest.raises(ValueError):
+        await pool.delete("nonexistent_table", allow_full_table=True)
+
+
+@pytest.mark.asyncio
 async def test_update_and_delete_refuse_unfiltered_writes(pool):
     await pool.get_guild_settings(GUILD_A)
     with pytest.raises(ValueError):

@@ -1,15 +1,24 @@
 """
 Invite tracking repository.
 """
+from typing import Any
+
 import aiosqlite
-from fyrion.database.connection import DatabaseManager
 
 class InviteRepository:
-    def __init__(self, db: DatabaseManager):
+    def __init__(self, db: Any):
         self.db = db
 
     async def add_join(self, guild_id: int, joined_user_id: int, inviter_id: int) -> None:
         """Records a user join and credits the inviter."""
+        # ``member_inviters`` and ``invite_stats`` both hold a foreign key onto
+        # ``guild_configs``. On a brand-new guild that row may not exist yet, so
+        # create it defensively before the child inserts.
+        await self.db.execute(
+            "INSERT OR IGNORE INTO guild_configs (guild_id) VALUES (?)",
+            (guild_id,),
+        )
+
         # 1. Record who invited this user
         query_link = """
             INSERT OR REPLACE INTO member_inviters (guild_id, user_id, inviter_id)
