@@ -2276,6 +2276,10 @@ class Economy(FyrionCog, commands.Cog):
         # Reserved synchronously so a double invocation cannot open two hands.
         self._in_play.add(key)
         released = False
+        # True from the moment the stake is debited until it is either settled
+        # (the natural branch, which credits the payout) or handed to a live
+        # view that will settle it. While it is True, any failure must refund.
+        stake_open = False
 
         try:
             await interaction.response.defer()
@@ -2287,6 +2291,7 @@ class Economy(FyrionCog, commands.Cog):
                 released = True
                 self._in_play.discard(key)
                 return
+            stake_open = True
 
             deck = build_deck(self._rng)
             game = BlackjackGame(
@@ -2305,7 +2310,12 @@ class Economy(FyrionCog, commands.Cog):
             if game.player.is_blackjack or game.dealer.is_blackjack:
                 game.resolving = True
                 embed = await self.settle_blackjack(game, member, settings)
-                released = True
+                # settle_blackjack has credited any payout (the stake included)
+                # and freed _in_play in its own finally, so the stake is no
+                # longer open; refunding it here would double-credit. _in_play
+                # cleanup is left to the finally below (a redundant, harmless
+                # discard) so a failed send here cannot leak the key.
+                stake_open = False
                 await interaction.followup.send(
                     embed=embed, allowed_mentions=NO_MENTIONS
                 )
@@ -2320,9 +2330,26 @@ class Economy(FyrionCog, commands.Cog):
             )
             # Needed so a timed-out hand can still edit its own message.
             view.message = message
+            # The live view now owns the stake and will settle it.
+            stake_open = False
             released = True  # ownership now belongs to the view
         except Exception:
             log.exception("Could not start a blackjack hand in guild %s.", guild.id)
+            if stake_open:
+                # Debited but never settled and never handed to a live view (for
+                # example a transient failure on the send that carries the view):
+                # refund the stake rather than let it be silently pocketed. The
+                # refund is best-effort; a failure here is logged and the
+                # original error still propagates.
+                try:
+                    await self.repo.credit(guild.id, member.id, stake)
+                except Exception:
+                    log.exception(
+                        "Could not refund a blackjack stake after the hand "
+                        "failed to start for member %s in guild %s.",
+                        member.id,
+                        guild.id,
+                    )
             await self._reject(
                 interaction, "That hand could not be started. Please try again."
             )

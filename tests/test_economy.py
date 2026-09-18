@@ -8,13 +8,17 @@ built atomic; this suite confirms it and guards against regressions.
 """
 import asyncio
 import random
+from unittest.mock import AsyncMock, MagicMock
 
+import discord
 import pytest
 
+from fyrion.cogs import economy as economy_mod
 from fyrion.cogs.economy import (
     GAMBLE_WIN_CHANCE,
     SLOT_PAIR_MULTIPLIER,
     SLOT_REELS,
+    Economy,
     Hand,
     blackjack_payout,
     build_deck,
@@ -395,3 +399,113 @@ def test_coinflip_win_rate_matches_configured_chance():
     # And the configured chance is a house edge, not a coin flip in the
     # player's favour.
     assert GAMBLE_WIN_CHANCE < 0.5
+
+
+# ---------------------------------------------------------------------------
+# blackjack_cmd -- stake is refunded when the hand fails to start
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_blackjack_refunds_stake_when_view_send_fails(db_manager, monkeypatch):
+    """A transient failure on the send that carries the view must refund.
+
+    The stake is debited before the hand is shown. If the ``followup.send`` that
+    attaches the :class:`BlackjackView` raises, the hand never starts and no view
+    is live to settle it, so ``blackjack_cmd`` must credit the stake back rather
+    than let it be silently pocketed -- and it must free the in-play guard.
+    """
+    stake = 200
+    starting = 1000
+
+    await db_manager.ensure_guild(GUILD_ID)
+    await db_manager.update_guild_settings(GUILD_ID, economy_enabled=1)
+    await fund(db_manager, USER_A, starting)
+
+    bot = MagicMock()
+    bot.db = db_manager
+    cog = Economy(bot)
+
+    # Deterministic, non-natural deal: draw() pops from the end, dealt
+    # player, dealer, player, dealer -> player 10+7=17, dealer 9+8=17.
+    fixed_deck = [("8", "♠"), ("7", "♠"), ("9", "♠"), ("10", "♠")]
+    monkeypatch.setattr(economy_mod, "build_deck", lambda *a, **k: list(fixed_deck))
+
+    guild = MagicMock()
+    guild.id = GUILD_ID
+    member = MagicMock(spec=discord.Member)
+    member.id = USER_A
+    member.bot = False
+    member.guild = guild
+
+    interaction = MagicMock()
+    interaction.guild = guild
+    interaction.user = member
+    interaction.response.defer = AsyncMock()
+    interaction.response.is_done = MagicMock(return_value=True)
+    interaction.response.send_message = AsyncMock()
+    # First send carries the view and fails; the follow-up rejection succeeds.
+    interaction.followup.send = AsyncMock(
+        side_effect=[RuntimeError("transient send failure"), None]
+    )
+
+    with pytest.raises(RuntimeError):
+        await Economy.blackjack_cmd.callback(cog, interaction, stake)
+
+    # Debited 200 then refunded 200 -> wallet whole again.
+    assert await balance_of(db_manager, USER_A) == starting
+    # The in-play guard is released, so the member can start another hand.
+    assert (GUILD_ID, USER_A) not in cog._in_play
+
+
+@pytest.mark.asyncio
+async def test_blackjack_natural_send_failure_frees_in_play(db_manager, monkeypatch):
+    """A failed send on the natural-blackjack path must not strand the guard.
+
+    On a natural, ``settle_blackjack`` credits the payout before the result is
+    sent. If that send then fails the payout stands (no refund, no double
+    credit), but the in-play key must still be freed so the member is not locked
+    out of future hands.
+    """
+    stake = 200
+    starting = 1000
+
+    await db_manager.ensure_guild(GUILD_ID)
+    await db_manager.update_guild_settings(GUILD_ID, economy_enabled=1)
+    await fund(db_manager, USER_A, starting)
+
+    bot = MagicMock()
+    bot.db = db_manager
+    cog = Economy(bot)
+
+    # Deterministic natural: dealt player, dealer, player, dealer (draw() pops
+    # from the end) -> player A+K = blackjack, dealer 9+8 = 17.
+    fixed_deck = [("8", "♠"), ("K", "♠"), ("9", "♠"), ("A", "♠")]
+    monkeypatch.setattr(economy_mod, "build_deck", lambda *a, **k: list(fixed_deck))
+
+    guild = MagicMock()
+    guild.id = GUILD_ID
+    member = MagicMock(spec=discord.Member)
+    member.id = USER_A
+    member.bot = False
+    member.guild = guild
+
+    interaction = MagicMock()
+    interaction.guild = guild
+    interaction.user = member
+    interaction.response.defer = AsyncMock()
+    interaction.response.is_done = MagicMock(return_value=True)
+    interaction.response.send_message = AsyncMock()
+    # The natural-result send fails; the follow-up rejection succeeds.
+    interaction.followup.send = AsyncMock(
+        side_effect=[RuntimeError("transient send failure"), None]
+    )
+
+    with pytest.raises(RuntimeError):
+        await Economy.blackjack_cmd.callback(cog, interaction, stake)
+
+    # Natural pays 3:2: -200 stake + 500 returned. The failed send neither
+    # refunds (no double credit) nor undoes the win.
+    assert await balance_of(db_manager, USER_A) == starting - stake + (stake * 5 // 2)
+    # And the guard is freed despite the send failure.
+    assert (GUILD_ID, USER_A) not in cog._in_play
