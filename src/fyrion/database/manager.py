@@ -769,16 +769,25 @@ class DatabasePool:
     # ------------------------------------------------------------------
 
     async def ensure_guild(self, guild_id: int) -> None:
-        """Creates the ``guild_settings`` parent row for a guild, if missing.
+        """Creates a guild's parent rows, if missing.
 
-        Every guild-scoped core table cascades from ``guild_settings``, so this
-        one insert is enough. The few remaining legacy repositories that still
-        hold a foreign key onto ``guild_configs`` create their own parent row
-        (``INSERT OR IGNORE INTO guild_configs``) before writing.
+        Every guild-scoped core table cascades from ``guild_settings``. A handful
+        of legacy tables (``warnings``, ``whitelists``, ``ticket_configs``,
+        ``invite_stats``, ``member_inviters``) still hold their foreign key onto
+        the older ``guild_configs`` table instead, so both parent rows are
+        created together here. This matters because a foreign-key violation is
+        *not* suppressed by ``INSERT OR IGNORE`` (only UNIQUE/NULL/CHECK are), so
+        without the ``guild_configs`` row a legacy insert on a brand-new guild
+        aborts and the row is lost rather than silently skipped. Both inserts run
+        in one transaction so a guild is never left half-initialized.
         """
         async with self.transaction() as conn:
             await conn.execute(
                 "INSERT OR IGNORE INTO guild_settings (guild_id) VALUES (?)",
+                (int(guild_id),),
+            )
+            await conn.execute(
+                "INSERT OR IGNORE INTO guild_configs (guild_id) VALUES (?)",
                 (int(guild_id),),
             )
 
