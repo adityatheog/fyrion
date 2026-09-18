@@ -24,7 +24,6 @@ from discord.utils import utcnow
 
 from fyrion.config import Config
 from fyrion.database.manager import DatabasePool
-from fyrion.errors.handler import setup_error_handlers
 from fyrion.views.tickets import TicketControlView, TicketPanelView
 
 log = logging.getLogger("fyrion.bot")
@@ -135,8 +134,8 @@ class Fyrion(commands.AutoShardedBot):
         if hasattr(self.db, "start_maintenance"):
             self.db.start_maintenance(Config.DATABASE_MAINTENANCE_INTERVAL_SECONDS)
 
-        setup_error_handlers(self)
-
+        # The command tree's error handler is installed by the ErrorHandler cog
+        # when it loads in _load_extensions below.
         for view_cls in PERSISTENT_VIEWS:
             self.add_view(view_cls())
         log.info("Registered %d persistent view(s).", len(PERSISTENT_VIEWS))

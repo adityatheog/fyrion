@@ -313,8 +313,8 @@ class ErrorHandler(commands.Cog):
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        # Keep the handler installed by fyrion.errors.handler so cog_unload can
-        # put it back and never leave the tree unguarded.
+        # Save whatever handler the tree already had so cog_unload can put it
+        # back and never leave the tree unguarded across a reload.
         self._previous_handler = bot.tree.on_error
         bot.tree.on_error = self.on_app_command_error  # type: ignore[method-assign]
 
