@@ -6,6 +6,18 @@ on:
   pull_request:
     branches: [ "main" ]
 
+# Least privilege: the workflow only reads the repository and runs tests, so the
+# GITHUB_TOKEN needs no write scopes. This caps the blast radius of a compromised
+# action or dependency in the job.
+permissions:
+  contents: read
+
+# Cancel superseded runs for the same ref so a rapid push/PR update does not keep
+# outdated jobs running or land status out of order.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
