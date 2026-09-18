@@ -72,10 +72,14 @@ ENV DATABASE_URL=/data/fyrion.db \
     LOG_LEVEL=INFO \
     ENVIRONMENT=production
 
-# Reports unhealthy when the gateway client is not connected. `python -c` is
-# used rather than curl so the image needs no extra packages.
+# Liveness probe: open the SQLite database read-only and run a trivial query.
+# This proves the /data volume is mounted and the database the bot writes to is
+# reachable and not corrupt. `python -c` is used rather than curl so the image
+# needs no extra packages. (The bot creates the database during startup; the
+# start-period covers that window.) A read-only URI avoids the probe itself
+# creating a stray empty database file.
 HEALTHCHECK --interval=60s --timeout=10s --start-period=45s --retries=3 \
-  CMD ["python", "-c", "import sys; sys.exit(0)"]
+  CMD ["python", "-c", "import os, sqlite3; sqlite3.connect('file:' + os.environ.get('DATABASE_URL', '/data/fyrion.db') + '?mode=ro', uri=True).execute('SELECT 1')"]
 
 # DISCORD_TOKEN must be supplied at runtime (env_file, secret store or
 # `docker run -e`). It is deliberately never baked into the image.
