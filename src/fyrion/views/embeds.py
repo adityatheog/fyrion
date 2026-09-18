@@ -89,6 +89,9 @@ class EmbedPreviewView(discord.ui.View):
         self.author_id = author_id
         self.channel = channel
         self.embed = embed
+        # Set after the preview is sent so an expired draft can retract its own
+        # buttons instead of leaving a dead Send prompt behind.
+        self.message: discord.InteractionMessage | None = None
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.author_id:
@@ -161,6 +164,19 @@ class EmbedPreviewView(discord.ui.View):
             view=None,
         )
         self.stop()
+
+    async def on_timeout(self) -> None:
+        # Retract the Send prompt so an abandoned draft cannot be posted later
+        # from a stale button; the preview embed is kept for reference.
+        if self.message is None:
+            return
+        try:
+            await self.message.edit(
+                content="\u23f1\ufe0f Preview expired; nothing was posted.",
+                view=None,
+            )
+        except discord.HTTPException:
+            pass
 
 
 class EmbedBuilderModal(discord.ui.Modal, title="Embed Builder"):
@@ -248,6 +264,8 @@ class EmbedBuilderModal(discord.ui.Modal, title="Embed Builder"):
             ephemeral=True,
             allowed_mentions=NO_MENTIONS,
         )
+        # Needed so a timed-out preview can retract its own Send prompt.
+        view.message = await interaction.original_response()
 
     async def on_error(
         self, interaction: discord.Interaction, error: Exception
