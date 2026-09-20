@@ -962,6 +962,10 @@ async def oauth_callback(
     enforce_rate_limit(request, "auth")
 
     expected_state = request.session.pop(SESSION_STATE, None)
+    # Capture the post-login redirect target now: session.clear() below wipes
+    # the whole session dict, so reading SESSION_NEXT after it would always be
+    # None and the ?next= deep link would be lost.
+    next_path = request.session.get(SESSION_NEXT)
 
     if error:
         log.info("OAuth callback returned an error: %s", str(error)[:100])
@@ -1029,7 +1033,7 @@ async def oauth_callback(
         len(snapshot),
     )
 
-    destination = safe_next_path(request.session.pop(SESSION_NEXT, None)) or "/dashboard"
+    destination = safe_next_path(next_path) or "/dashboard"
     return RedirectResponse(destination, status_code=status.HTTP_303_SEE_OTHER)
 
 

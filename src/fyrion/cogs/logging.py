@@ -50,7 +50,10 @@ def _truncate(text: str, limit: int = EXCERPT_LIMIT) -> str:
 def _fence(text: str) -> str:
     """Wraps user supplied text so markdown and mentions stay inert."""
     # A zero-width space defuses code fences embedded in the content itself.
-    safe = _truncate(text).replace("```", "`\u200b``")
+    # Escape *before* truncating: the replace expands each ``` to four chars,
+    # so truncating first could push the fenced field past Discord's 1024-char
+    # per-field limit and make the whole audit embed fail to send.
+    safe = _truncate(text.replace("```", "`\u200b``"))
     return f"```\n{safe}\n```"
 
 

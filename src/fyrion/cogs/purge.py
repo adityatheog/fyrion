@@ -590,9 +590,12 @@ class Purge(commands.Cog):
             if not images_only:
                 return True
             # content_type is None for uploads Discord could not classify, so
-            # fall back to the reported dimensions.
+            # fall back to the reported dimensions *only then* -- a classified
+            # non-image (e.g. video/mp4) also carries a height, so an
+            # unconditional dimension check would delete videos too.
             return any(
-                (item.content_type or "").startswith("image/") or item.height
+                (item.content_type or "").startswith("image/")
+                or (item.content_type is None and item.height is not None)
                 for item in message.attachments
             )
 

@@ -123,8 +123,11 @@ def _as_int(value: Any, default: int) -> int:
 
 def _fence(text: str) -> str:
     """Wraps user supplied text so markdown and mentions stay inert."""
-    safe = text[:LOG_EXCERPT_LIMIT].replace("```", "`\u200b``")
-    safe = safe.replace("@", "@\u200b")
+    # Escape *before* truncating: both replaces expand length (``` -> 4 chars,
+    # @ -> 2 chars), so slicing first could push the fenced field past Discord's
+    # 1024-char per-field limit and make the whole audit embed fail to send.
+    safe = text.replace("```", "`\u200b``").replace("@", "@\u200b")
+    safe = safe[:LOG_EXCERPT_LIMIT]
     return f"```\n{safe}\n```"
 
 
