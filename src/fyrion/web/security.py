@@ -86,6 +86,36 @@ def hash_ip(ip: str | None, *, key: bytes | None = None) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# CSRF (double submit, derived from the session)
+# ---------------------------------------------------------------------------
+
+
+def csrf_token(session_token: str, *, key: bytes | None = None) -> str:
+    """Returns the CSRF token bound to a session.
+
+    The session cookie is HttpOnly, so a page cannot read it to double-submit
+    it. Instead the CSRF token is a keyed HMAC of the session token: the server
+    can re-derive it on every request, but an attacker who cannot read the
+    HttpOnly cookie cannot compute it. It is handed to the client through an
+    authenticated ``/api`` response and echoed back in the ``X-CSRF-Token``
+    header on mutating requests. The ``csrf:`` domain prefix keeps this digest
+    distinct from :func:`hash_token`, so the value exposed to JavaScript can
+    never coincide with the stored session lookup key.
+    """
+    message = f"csrf:{session_token}".encode("utf-8")
+    return hmac.new(_key(key), message, hashlib.sha256).hexdigest()
+
+
+def verify_csrf(
+    session_token: str | None, supplied: str | None, *, key: bytes | None = None
+) -> bool:
+    """Constant-time check that ``supplied`` is the token for ``session_token``."""
+    if not session_token or not supplied:
+        return False
+    return hmac.compare_digest(supplied, csrf_token(session_token, key=key))
+
+
+# ---------------------------------------------------------------------------
 # OAuth state
 # ---------------------------------------------------------------------------
 
@@ -188,6 +218,8 @@ __all__ = [
     "generate_token",
     "hash_token",
     "hash_ip",
+    "csrf_token",
+    "verify_csrf",
     "create_state",
     "verify_state",
     "set_session_cookie",

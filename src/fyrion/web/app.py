@@ -202,6 +202,25 @@ async def require_session(request: Request) -> dict[str, Any]:
     return session
 
 
+async def require_csrf(request: Request) -> None:
+    """Rejects a mutating request that does not carry the session CSRF token.
+
+    Defence in depth on top of the ``SameSite=Lax`` session cookie: the client
+    reads its token from an authenticated ``/api`` response (see ``/api/me``)
+    and echoes it in the ``X-CSRF-Token`` header. The token is a keyed HMAC of
+    the session token, so it is bound to the session and cannot be forged
+    without reading the HttpOnly cookie. GET routes are never guarded; only the
+    mutating endpoints depend on this.
+    """
+    token = request.cookies.get(security.SESSION_COOKIE)
+    supplied = request.headers.get("x-csrf-token")
+    if not security.verify_csrf(token, supplied):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Missing or invalid CSRF token.",
+        )
+
+
 async def _resolve_member(
     guild: discord.Guild, user_id: int, *, allow_fetch: bool = True
 ) -> discord.Member | None:
@@ -429,7 +448,9 @@ async def logout(request:Request) -> JSONResponse:
 
 @auth_router.post("/logout-all")
 async def logout_all(
-    request: Request, session: dict[str, Any] = Depends(require_session)
+    request: Request,
+    session: dict[str, Any] = Depends(require_session),
+    _csrf: None = Depends(require_csrf),
 ) -> JSONResponse:
     """Revokes every session belonging to the caller (all devices)."""
     pool = _pool(request)
@@ -459,6 +480,10 @@ async def whoami(
     manageable.sort(key=lambda item: item["name"].lower())
 
     user = bot.get_user(user_id)
+    # The caller already holds the (HttpOnly) session cookie; handing back the
+    # CSRF token derived from it lets the page echo it in X-CSRF-Token on
+    # mutating requests without ever exposing the cookie itself to JavaScript.
+    cookie_token = request.cookies.get(security.SESSION_COOKIE)
     return {
         "user": {
             "id": str(user_id),
@@ -469,6 +494,9 @@ async def whoami(
             "created_at": session.get("created_at"),
             "expires_at": session.get("expires_at"),
             "scopes": session.get("scopes"),
+            "csrf_token": (
+                security.csrf_token(cookie_token) if cookie_token else None
+            ),
         },
         "guilds": manageable,
     }
@@ -530,6 +558,7 @@ async def patch_settings(
     payload: GuildSettingsUpdate,
     request: Request,
     context: GuildContext = Depends(require_guild_manager),
+    _csrf: None = Depends(require_csrf),
 ) -> dict[str, Any]:
     """Applies a partial settings update.
 
@@ -767,7 +796,7 @@ def _install_middleware(app: FastAPI) -> None:
             allow_origins=origins,
             allow_credentials=True,
             allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
-            allow_headers=["Authorization", "Content-Type"],
+            allow_headers=["Authorization", "Content-Type", "X-CSRF-Token"],
             max_age=600,
         )
 

@@ -486,7 +486,8 @@ What the dashboard enforces:
   on the target guild, checked against Fyrion's live view of the member.
 - Session cookies are HttpOnly, `SameSite=Lax` and `Secure` on https. Mutating
   requests additionally require the session CSRF token in an `X-CSRF-Token`
-  header.
+  header; a client reads that token from its authenticated session response
+  (`/api/me` when running alongside the bot).
 - `PATCH` bodies are validated with `extra="forbid"`; referenced channels and
   roles must exist in that guild, and a role Fyrion could not assign is refused
   at configuration time rather than failing silently later.

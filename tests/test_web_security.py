@@ -45,6 +45,46 @@ def test_ip_hashing():
     assert digest != security.hash_ip("203.0.113.8", key=KEY)
 
 
+def test_csrf_token_is_deterministic_keyed_and_distinct():
+    token = security.generate_token()
+
+    # Same session + same key -> same CSRF token (re-derivable per request).
+    assert security.csrf_token(token, key=KEY) == security.csrf_token(token, key=KEY)
+    # A different key yields a different token.
+    assert security.csrf_token(token, key=KEY) != security.csrf_token(
+        token, key=OTHER_KEY
+    )
+    # A different session yields a different token.
+    assert security.csrf_token(token, key=KEY) != security.csrf_token(
+        security.generate_token(), key=KEY
+    )
+    # Domain separation: the CSRF token must never equal the stored lookup hash,
+    # so exposing it to JavaScript cannot leak the session lookup key.
+    assert security.csrf_token(token, key=KEY) != security.hash_token(token, key=KEY)
+
+
+def test_verify_csrf_accepts_the_matching_token():
+    token = security.generate_token()
+    good = security.csrf_token(token, key=KEY)
+    assert security.verify_csrf(token, good, key=KEY) is True
+
+
+def test_verify_csrf_rejects_mismatch_and_missing():
+    token = security.generate_token()
+    good = security.csrf_token(token, key=KEY)
+
+    # Token derived for a different session must not validate.
+    other = security.csrf_token(security.generate_token(), key=KEY)
+    assert security.verify_csrf(token, other, key=KEY) is False
+    # Wrong signing key must not validate.
+    assert security.verify_csrf(token, good, key=OTHER_KEY) is False
+    # Missing either side is refused.
+    assert security.verify_csrf(token, None, key=KEY) is False
+    assert security.verify_csrf(None, good, key=KEY) is False
+    assert security.verify_csrf("", good, key=KEY) is False
+    assert security.verify_csrf(token, "", key=KEY) is False
+
+
 def test_state_round_trip():
     state = security.create_state(key=KEY)
     assert security.verify_state(state, state, key=KEY) is True
