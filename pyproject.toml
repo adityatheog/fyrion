@@ -9,9 +9,9 @@ description = "Powerful tools for better Discord communities."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "discord.py>=2.3.2",
-    "python-dotenv>=1.0.0",
-    "aiosqlite>=0.19.0"
+    "discord.py>=2.4.0",
+    "python-dotenv>=1.0.1",
+    "aiosqlite>=0.20.0"
 ]
 
 [project.optional-dependencies]
