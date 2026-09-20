@@ -37,3 +37,15 @@ web = [
     "jinja2>=3.1.4",
     "itsdangerous>=2.2.0"
 ]
+
+[tool.mypy]
+# Shared type-checking settings so a bare local `mypy src dashboard` and CI
+# check the same tree under the same rules. The standalone `dashboard/` package
+# is included alongside the source package (see the CI mypy step); it was
+# previously unchecked even though it is disciplined about typing.
+python_version = "3.10"
+# Third-party deps are either untyped (discord.py) or only present when the web
+# extra is installed (fastapi, uvicorn, starlette, httpx). Skipping their
+# missing stubs keeps the check on Fyrion's own annotations, matching the flag
+# CI passed before this config existed.
+ignore_missing_imports = true

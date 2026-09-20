@@ -56,7 +56,10 @@ jobs:
         
     - name: Type check with Mypy
       run: |
-        mypy src --ignore-missing-imports
+        # Type-check the source package and the standalone dashboard package.
+        # Shared settings (python_version, ignore_missing_imports) live in
+        # [tool.mypy] in pyproject.toml so local runs match CI.
+        mypy src dashboard
         
     - name: Run unit and integration tests
       run: |
