@@ -38,8 +38,10 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        # Installs fyrion along with pytest, black, flake8, and mypy from pyproject.toml
-        pip install -e .[dev]
+        # Installs fyrion with the dev toolchain (pytest, black, flake8, mypy) and
+        # the web extra (fastapi, uvicorn, etc.) so the FastAPI dashboard tests run
+        # instead of being importorskip-skipped.
+        pip install -e .[dev,web]
         
     - name: Check code formatting with Black
       run: |
