@@ -215,8 +215,8 @@ class AntiNuke(commands.Cog):
             for key, at in self._punished.items()
             if now - at > PUNISH_COOLDOWN_SECONDS
         ]
-        for key in stale_marks:
-            del self._punished[key]
+        for mark_key in stale_marks:
+            del self._punished[mark_key]
 
         stale_policies = [
             guild_id

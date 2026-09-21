@@ -2749,8 +2749,8 @@ class Economy(FyrionCog, commands.Cog):
 
         catalogue: dict[str, dict[str, Any]] = {}
         try:
-            for record in await self.repo.list_items(guild.id, enabled_only=False):
-                catalogue[str(record.get("item_key"))] = record
+            for entry in await self.repo.list_items(guild.id, enabled_only=False):
+                catalogue[str(entry.get("item_key"))] = entry
         except Exception:
             log.exception("Could not read the shop while listing an inventory.")
 

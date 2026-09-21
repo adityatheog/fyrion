@@ -155,13 +155,16 @@ def can_manage_member_roles(
 
 
 def missing_channel_permissions(
-    member: discord.Member, channel: discord.abc.GuildChannel, **required: bool
+    member: discord.Member,
+    channel: discord.abc.GuildChannel | discord.Thread,
+    **required: bool,
 ) -> list[str]:
     """Returns the human-readable names of the permissions ``member`` lacks.
 
     Channel overwrites can grant or revoke a permission independently of the
     guild-level value, so effective channel permissions are what callers must
-    check before acting on a specific channel.
+    check before acting on a specific channel. Threads are accepted alongside
+    guild channels because ``permissions_for`` resolves the same way on both.
     """
     effective = channel.permissions_for(member)
     missing: list[str] = []

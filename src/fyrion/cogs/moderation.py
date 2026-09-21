@@ -651,7 +651,9 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
 
         overwrite = channel.overwrites_for(guild.default_role)
         # None restores inheritance instead of pinning an explicit allow.
-        overwrite.send_messages = False if locked else None
+        # PermissionOverwrite accepts permission names dynamically via __setattr__;
+        # mypy only sees the stub's __slots__, so this is a stub limitation.
+        overwrite.send_messages = False if locked else None  # type: ignore[misc]
 
         try:
             await channel.set_permissions(

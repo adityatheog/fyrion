@@ -184,7 +184,8 @@ class Admin(FyrionCog, commands.Cog):
 
     @staticmethod
     def _writable(
-        guild: discord.Guild, channel: discord.abc.GuildChannel
+        guild: discord.Guild,
+        channel: discord.abc.GuildChannel | discord.Thread,
     ) -> str | None:
         """Returns an error when Fyrion cannot post embeds in ``channel``."""
         me = guild.me
@@ -629,16 +630,16 @@ class Admin(FyrionCog, commands.Cog):
 
         applied = 0
         failed = 0
-        for channel in targets:
+        for target in targets:
             try:
-                await channel.set_permissions(role, overwrite=overwrite, reason=reason)
+                await target.set_permissions(role, overwrite=overwrite, reason=reason)
             except discord.Forbidden:
                 failed += 1
             except discord.HTTPException as exc:
                 failed += 1
                 log.warning(
                     "Could not apply mute overwrites in channel %s: %s",
-                    channel.id,
+                    target.id,
                     exc,
                 )
             else:
@@ -1160,7 +1161,9 @@ class Admin(FyrionCog, commands.Cog):
                 created = await guild.create_text_channel(
                     name=cleaned,
                     category=category,
-                    topic=topic,
+                    # discord.py uses MISSING (not None) to mean "no topic";
+                    # the slash-command param defaults to None when omitted.
+                    topic=topic if topic is not None else discord.utils.MISSING,
                     nsfw=nsfw,
                     slowmode_delay=slowmode or 0,
                     reason=audit,

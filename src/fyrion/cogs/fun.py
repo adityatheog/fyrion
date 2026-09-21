@@ -404,17 +404,21 @@ class Fun(commands.Cog):
     ) -> None:
         """Replies once, whether or not the interaction was deferred."""
         try:
+            # discord.py's typed send overloads use MISSING (not None) for an
+            # omitted content/embed; both mean "not supplied" at runtime.
+            send_content = content if content is not None else discord.utils.MISSING
+            send_embed = embed if embed is not None else discord.utils.MISSING
             if interaction.response.is_done():
                 await interaction.followup.send(
-                    content=content,
-                    embed=embed,
+                    content=send_content,
+                    embed=send_embed,
                     ephemeral=ephemeral,
                     allowed_mentions=NO_MENTIONS,
                 )
             else:
                 await interaction.response.send_message(
-                    content=content,
-                    embed=embed,
+                    content=send_content,
+                    embed=send_embed,
                     ephemeral=ephemeral,
                     allowed_mentions=NO_MENTIONS,
                 )

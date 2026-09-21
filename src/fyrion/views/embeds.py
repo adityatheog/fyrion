@@ -269,7 +269,10 @@ class EmbedBuilderModal(discord.ui.Modal, title="Embed Builder"):
         view.message = await interaction.original_response()
 
     async def on_error(
-        self, interaction: discord.Interaction, error: Exception
+        self,
+        interaction: discord.Interaction,
+        error: Exception,
+        item: discord.ui.Item[Any] | None = None,
     ) -> None:
         log.error("Embed builder modal failed", exc_info=error)
         message = "\u274c The embed could not be built. Please try again."

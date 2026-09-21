@@ -2,6 +2,8 @@
 Dynamic slash-command help system.
 """
 
+from collections.abc import Mapping
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -13,7 +15,7 @@ MAX_EMBED_FIELDS = 25
 
 
 class HelpCategorySelect(discord.ui.Select):
-    def __init__(self, cogs_dict: dict[str, commands.Cog]) -> None:
+    def __init__(self, cogs_dict: Mapping[str, commands.Cog]) -> None:
         # Filter out hidden or event-only cogs without commands
         self.cogs_dict = {
             name: cog for name, cog in cogs_dict.items() if cog.get_app_commands()
@@ -83,7 +85,7 @@ class HelpCategorySelect(discord.ui.Select):
 
 
 class HelpView(discord.ui.View):
-    def __init__(self, cogs_dict: dict[str, commands.Cog]) -> None:
+    def __init__(self, cogs_dict: Mapping[str, commands.Cog]) -> None:
         super().__init__(timeout=120)
         # Set once the menu is sent, so on_timeout can grey the dropdown out
         # rather than leaving a dead, still-clickable-looking control behind.

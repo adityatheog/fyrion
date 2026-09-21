@@ -365,10 +365,10 @@ def _eval_node(node: ast.AST) -> Any:
         return _check_magnitude(result)
 
     if isinstance(node, ast.UnaryOp):
-        handler = _UNARY_OPS.get(type(node.op))
-        if handler is None:
+        unary_handler = _UNARY_OPS.get(type(node.op))
+        if unary_handler is None:
             raise CalculatorError("Only unary + and - are supported.")
-        return _check_magnitude(handler(_eval_node(node.operand)))
+        return _check_magnitude(unary_handler(_eval_node(node.operand)))
 
     if isinstance(node, ast.Call):
         if not isinstance(node.func, ast.Name):
@@ -870,7 +870,13 @@ class Utility(commands.Cog):
         )
 
         shard_id = interaction.guild.shard_id if interaction.guild is not None else 0
-        shard = self.bot.get_shard(shard_id)
+        # get_shard exists only on AutoShardedBot; a non-sharded bot has no
+        # per-shard latency to report, so the field is simply omitted there.
+        shard = (
+            self.bot.get_shard(shard_id)
+            if isinstance(self.bot, commands.AutoShardedBot)
+            else None
+        )
         if shard is not None:
             embed.add_field(
                 name=f"Shard {shard_id}",
@@ -1605,14 +1611,7 @@ class Utility(commands.Cog):
         closes_at: datetime | None = None
         description_lines = [f"{icon} {choice}" for icon, choice in zip(emoji, choices)]
         if minutes is not None:
-            closes_at = (
-                utcnow()
-                + discord.utils.utcnow().replace(tzinfo=timezone.utc).utcoffset()
-                if False
-                else utcnow()
-            )
-            # Computed explicitly to keep the intent obvious.
-            closes_at = utcnow().fromtimestamp(
+            closes_at = datetime.fromtimestamp(
                 utcnow().timestamp() + minutes * 60, tz=timezone.utc
             )
             description_lines.append(
@@ -1673,7 +1672,7 @@ class Utility(commands.Cog):
                 f"\u26a0\ufe0f Only {added} of {len(emoji)} vote reactions could be "
                 "added; members can still add the rest themselves."
             )
-        if closes_at is not None:
+        if closes_at is not None and minutes is not None:
             lines.append(
                 "I will post the results "
                 f"{discord.utils.format_dt(closes_at, style='R')}. This is best "

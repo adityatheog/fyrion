@@ -36,6 +36,7 @@ Security model
 * **No internals in responses.** Unhandled failures return a short reference id;
   the traceback stays in the log. Filesystem paths are never exposed.
 """
+
 from __future__ import annotations
 
 import hmac
@@ -324,7 +325,11 @@ def serialize_ids(row: Mapping[str, Any]) -> dict[str, Any]:
     """Renders snowflakes as strings so JavaScript cannot lose precision."""
     result: dict[str, Any] = {}
     for key, value in row.items():
-        if isinstance(value, int) and not isinstance(value, bool) and key.endswith("_id"):
+        if (
+            isinstance(value, int)
+            and not isinstance(value, bool)
+            and key.endswith("_id")
+        ):
             result[key] = str(value)
         else:
             result[key] = value
@@ -399,9 +404,7 @@ def session_user(request: Request) -> dict[str, Any] | None:
 def require_user(request: Request) -> dict[str, Any]:
     user = session_user(request)
     if user is None:
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED, "Authentication is required."
-        )
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authentication is required.")
     return user
 
 
@@ -511,9 +514,7 @@ async def exchange_code(
     return profile, [entry for entry in guilds if isinstance(entry, dict)]
 
 
-async def _fetch_json(
-    client: httpx.AsyncClient, url: str, access_token: str
-) -> Any:
+async def _fetch_json(client: httpx.AsyncClient, url: str, access_token: str) -> Any:
     try:
         response = await client.get(
             url, headers={"Authorization": f"Bearer {access_token}"}
@@ -580,9 +581,7 @@ async def resolve_member(guild: Any, user_id: int) -> tuple[Any | None, bool]:
     except discord.Forbidden:
         return None, True
     except discord.HTTPException as exc:
-        log.warning(
-            "Could not fetch member %s in guild %s: %s", user_id, guild.id, exc
-        )
+        log.warning("Could not fetch member %s in guild %s: %s", user_id, guild.id, exc)
         return None, True
 
 
@@ -676,12 +675,18 @@ def describe_guild(entry: Mapping[str, Any], bot: Any | None) -> dict[str, Any]:
 
     return {
         "id": str(guild_id),
-        "name": str(guild.name) if guild is not None else str(entry.get("name") or "Unknown server"),
+        "name": (
+            str(guild.name)
+            if guild is not None
+            else str(entry.get("name") or "Unknown server")
+        ),
         "icon_url": icon_url,
         "owner": bool(entry.get("owner")),
         "administrator": bool(permissions & PERMISSION_ADMINISTRATOR),
         "bot_present": guild is not None,
-        "member_count": getattr(guild, "member_count", None) if guild is not None else None,
+        "member_count": (
+            getattr(guild, "member_count", None) if guild is not None else None
+        ),
         "shard_id": getattr(guild, "shard_id", None) if guild is not None else None,
     }
 
@@ -717,7 +722,11 @@ def describe_channels(guild: Any | None) -> dict[str, list[dict[str, Any]]]:
             "name": str(channel.name),
             "type": str(channel.type),
             "position": int(getattr(channel, "position", 0)),
-            "category": str(channel.category.name) if getattr(channel, "category", None) else None,
+            "category": (
+                str(channel.category.name)
+                if getattr(channel, "category", None)
+                else None
+            ),
             "writable": writable,
         }
 
@@ -789,9 +798,7 @@ def login_redirect(request: Request) -> RedirectResponse:
     if request.url.query:
         target = f"{target}?{request.url.query}"
     query = urlencode({"next": target})
-    return RedirectResponse(
-        f"/login?{query}", status_code=status.HTTP_303_SEE_OTHER
-    )
+    return RedirectResponse(f"/login?{query}", status_code=status.HTTP_303_SEE_OTHER)
 
 
 # ---------------------------------------------------------------------------
@@ -806,7 +813,7 @@ async def index(request: Request) -> Response:
         return RedirectResponse("/dashboard", status_code=status.HTTP_303_SEE_OTHER)
 
     return templates(request).TemplateResponse(
-        "index.html", page_context(request, title="Fyrion")
+        request, "index.html", page_context(request, title="Fyrion")
     )
 
 
@@ -817,6 +824,7 @@ async def dashboard_page(request: Request) -> Response:
 
     guilds = manageable_guilds(request)
     return templates(request).TemplateResponse(
+        request,
         "dashboard.html",
         page_context(
             request,
@@ -848,6 +856,7 @@ async def manage_page(guild_id: int, request: Request) -> Response:
     }
 
     return templates(request).TemplateResponse(
+        request,
         "manage.html",
         page_context(
             request,
@@ -1149,9 +1158,7 @@ async def api_update_guild(
 
     values = payload.to_columns()
     if not values:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "No settings were supplied."
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No settings were supplied.")
 
     guild = access.guild
     if guild is not None:
@@ -1330,16 +1337,11 @@ def _wants_json(request: Request) -> bool:
 
 def _install_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(StarletteHTTPException)
-    async def _http_error(
-        request: Request, exc: StarletteHTTPException
-    ) -> Response:
+    async def _http_error(request: Request, exc: StarletteHTTPException) -> Response:
         detail = exc.detail if isinstance(exc.detail, str) else "Request failed."
 
         # An unauthenticated page request is a sign-in prompt, not an error.
-        if (
-            exc.status_code == status.HTTP_401_UNAUTHORIZED
-            and not _wants_json(request)
-        ):
+        if exc.status_code == status.HTTP_401_UNAUTHORIZED and not _wants_json(request):
             return login_redirect(request)
 
         if _wants_json(request):
@@ -1350,6 +1352,7 @@ def _install_exception_handlers(app: FastAPI) -> None:
             )
 
         return app.state.templates.TemplateResponse(
+            request,
             "index.html",
             page_context(
                 request,
@@ -1397,6 +1400,7 @@ def _install_exception_handlers(app: FastAPI) -> None:
             )
 
         return app.state.templates.TemplateResponse(
+            request,
             "index.html",
             page_context(
                 request,
@@ -1495,9 +1499,7 @@ def create_app(bot: Any | None = None, *, db: Any | None = None) -> FastAPI:
     _install_exception_handlers(app)
 
     if STATIC_DIR.is_dir():
-        app.mount(
-            "/static", StaticFiles(directory=str(STATIC_DIR)), name="static"
-        )
+        app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
     else:  # pragma: no cover - only when the package is installed incompletely
         log.warning("Static asset directory %s is missing.", STATIC_DIR)
 

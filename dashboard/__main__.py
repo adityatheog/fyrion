@@ -10,6 +10,7 @@ To run the dashboard alongside the bot in a single event loop (which is what
 enables the live cache), use ``python -m fyrion`` with ``DASHBOARD_ENABLED=true``
 instead.
 """
+
 from __future__ import annotations
 
 import logging

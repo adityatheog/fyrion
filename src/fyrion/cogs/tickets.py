@@ -929,7 +929,7 @@ class Tickets(commands.Cog):
             owner = row.get("user_id")
             claimed = row.get("claimed_by")
 
-            detail = f"{label} {location} \u2022 opened by <@{int(owner)}>"
+            detail = f"{label} {location} \u2022 opened by <@{int(owner or 0)}>"
             if claimed:
                 detail += f" \u2022 claimed by <@{int(claimed)}>"
             else:

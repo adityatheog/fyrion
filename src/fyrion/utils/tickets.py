@@ -504,7 +504,9 @@ async def open_ticket(
         await channel.send(
             content=content,
             embed=greeting_embed(member, ticket, topic),
-            view=control_view,
+            # discord.py's typed overloads use MISSING (not None) for an absent
+            # view; both mean "no view" at runtime.
+            view=control_view if control_view is not None else discord.utils.MISSING,
             allowed_mentions=mentions,
         )
     except discord.HTTPException as exc:
@@ -698,7 +700,9 @@ async def close_ticket(
             )
             posted = await archive.send(
                 embed=summary,
-                file=payload,
+                # MISSING (not None) is discord.py's "no attachment" sentinel in
+                # the typed overloads; there is no transcript file to attach.
+                file=payload if payload is not None else discord.utils.MISSING,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
             result.log_url = posted.jump_url

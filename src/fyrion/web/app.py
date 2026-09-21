@@ -44,6 +44,13 @@ from fyrion.web.models import CHANNEL_FIELDS, ROLE_FIELDS, GuildSettingsUpdate
 
 log = logging.getLogger("fyrion.web.app")
 
+# The dashboard is handed whatever bot the runtime built. Fyrion subclasses
+# ``AutoShardedBot``, which is a *sibling* of ``Bot`` (both derive from the
+# internal ``BotBase``), not a subclass -- so the annotation must accept either.
+# The dashboard only reads shared, sharding-agnostic surface (cogs, guilds,
+# get_guild/get_user, is_ready, latency, shard_count).
+BotLike = commands.Bot | commands.AutoShardedBot
+
 # Keys from DatabasePool.stats() that are safe to expose. ``db_url`` is a
 # filesystem path and is deliberately omitted.
 _SAFE_DB_STAT_KEYS = frozenset(
@@ -139,7 +146,7 @@ class SlidingWindowLimiter:
 # ---------------------------------------------------------------------------
 
 
-def _bot(request: Request) -> commands.Bot:
+def _bot(request: Request) -> BotLike:
     bot = getattr(request.app.state, "bot", None)
     if bot is None:  # pragma: no cover - lifespan always sets this
         raise HTTPException(
@@ -858,7 +865,7 @@ def _install_exception_handlers(app: FastAPI) -> None:
         )
 
 
-def create_app(bot: commands.Bot) -> FastAPI:
+def create_app(bot: BotLike) -> FastAPI:
     """Builds the dashboard application bound to a running bot instance."""
 
     @asynccontextmanager

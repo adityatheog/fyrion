@@ -14,6 +14,7 @@ the path is only added when the local ``src`` directory actually exists.
 The application factory is imported lazily so that merely importing this package
 does not require FastAPI, uvicorn or Jinja2 to be installed.
 """
+
 from __future__ import annotations
 
 import sys

@@ -13,13 +13,14 @@ process-wide handlers, and letting uvicorn install its own would race with them.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
+from collections.abc import Iterator
 
 import uvicorn
-from discord.ext import commands
 
 from fyrion.config import Config
-from fyrion.web.app import create_app
+from fyrion.web.app import BotLike, create_app
 
 log = logging.getLogger("fyrion.web.server")
 
@@ -30,13 +31,25 @@ GRACEFUL_TIMEOUT_SECONDS = 10
 class DashboardServer:
     """Owns the uvicorn server for the lifetime of the process."""
 
-    def __init__(self, bot: commands.Bot) -> None:
+    def __init__(self, bot: BotLike) -> None:
         self.bot = bot
         self.app = create_app(bot)
         self._server = uvicorn.Server(self._build_config())
-        # Fyrion owns SIGINT/SIGTERM; see fyrion.runtime.install_signal_handlers.
-        self._server.install_signal_handlers = lambda: None
+        # Fyrion owns SIGINT/SIGTERM (see fyrion.runtime.install_signal_handlers),
+        # so stop uvicorn from installing its own. uvicorn >=0.30 no longer has
+        # ``install_signal_handlers``; it captures signals through the
+        # ``capture_signals`` context manager inside ``serve()``. Replacing it
+        # with a no-op leaves the process handlers untouched. (An assignment to
+        # ``install_signal_handlers`` here would be a silent no-op on modern
+        # uvicorn and let it steal the signals.)
+        self._server.capture_signals = self._no_signal_capture  # type: ignore[method-assign]
         self._serving = False
+
+    @staticmethod
+    @contextlib.contextmanager
+    def _no_signal_capture() -> Iterator[None]:
+        """Drop-in for ``uvicorn.Server.capture_signals`` that installs nothing."""
+        yield
 
     def _build_config(self) -> uvicorn.Config:
         return uvicorn.Config(
