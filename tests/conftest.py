@@ -41,24 +41,50 @@ def mock_guild():
     return guild
 
 
+def _make_mock_role(position: int) -> "MagicMock":
+    """Builds a mock Role whose comparison operators use ``position``.
+
+    Discord's ``Role`` orders by position, so the hierarchy helpers compare
+    roles with ``<=``/``>``. Only the ordering is wired here; callers that need
+    ``is_default``/``managed``/``permissions`` set them on the returned mock.
+    """
+    role = MagicMock(spec=discord.Role)
+    role.__ge__ = lambda self, other: position >= other.position
+    role.__gt__ = lambda self, other: position > other.position
+    role.__le__ = lambda self, other: position <= other.position
+    role.__lt__ = lambda self, other: position < other.position
+    role.position = position
+    return role
+
+
+@pytest.fixture
+def make_mock_role():
+    """Factory for a standalone mock Role at a given hierarchy position."""
+    return _make_mock_role
+
+
 @pytest.fixture
 def create_mock_member(mock_guild):
     """Factory fixture to create mock Members with specific role positions."""
 
-    def _create(member_id: int, top_role_position: int, is_bot: bool = False):
+    def _create(
+        member_id: int,
+        top_role_position: int,
+        is_bot: bool = False,
+        *,
+        manage_roles: bool = False,
+        administrator: bool = False,
+    ):
         member = MagicMock(spec=discord.Member)
         member.id = member_id
         member.guild = mock_guild
 
         # Mock top_role with a position so hierarchy comparisons work.
-        mock_role = MagicMock(spec=discord.Role)
-        mock_role.__ge__ = lambda self, other: top_role_position >= other.position
-        mock_role.__gt__ = lambda self, other: top_role_position > other.position
-        mock_role.__le__ = lambda self, other: top_role_position <= other.position
-        mock_role.__lt__ = lambda self, other: top_role_position < other.position
-        mock_role.position = top_role_position
+        member.top_role = _make_mock_role(top_role_position)
 
-        member.top_role = mock_role
+        # Guild-level permissions consulted by the role-management helpers.
+        member.guild_permissions.manage_roles = manage_roles
+        member.guild_permissions.administrator = administrator
 
         if is_bot:
             mock_guild.me = member
