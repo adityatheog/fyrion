@@ -15,6 +15,7 @@ load, and the table cascades from ``guild_settings`` so removing a guild leaves
 no orphaned rows. Topics are stored as a JSON array because they are only ever
 read as a whole; nothing queries or counts them individually.
 """
+
 from __future__ import annotations
 
 import json

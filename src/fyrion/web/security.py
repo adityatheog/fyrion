@@ -15,6 +15,7 @@ Design rules:
 This module deliberately imports nothing from FastAPI: it is pure stdlib so it
 can be unit tested without the web extras installed.
 """
+
 from __future__ import annotations
 
 import base64
@@ -133,9 +134,7 @@ def _sign(payload: bytes, key: bytes | None = None) -> str:
     return _b64encode(hmac.new(_key(key), payload, hashlib.sha256).digest())
 
 
-def create_state(
-    *, ttl: int = STATE_TTL_SECONDS, key: bytes | None = None
-) -> str:
+def create_state(*, ttl: int = STATE_TTL_SECONDS, key: bytes | None = None) -> str:
     """Returns a signed, expiring OAuth ``state`` value."""
     payload = json.dumps(
         {"n": secrets.token_urlsafe(16), "e": int(time.time()) + int(ttl)},

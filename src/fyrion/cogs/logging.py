@@ -18,6 +18,7 @@ Limitations worth knowing:
 - Writing to the log is best effort. A missing channel or permission is logged
   locally and never raises back into the event dispatcher.
 """
+
 from __future__ import annotations
 
 import logging
@@ -162,7 +163,9 @@ class AuditLog(commands.Cog):
             value=f"{message.author.mention} (`{message.author.id}`)",
             inline=False,
         )
-        embed.add_field(name="Channel", value=_mention_of(message.channel), inline=False)
+        embed.add_field(
+            name="Channel", value=_mention_of(message.channel), inline=False
+        )
         if message.content:
             embed.add_field(name="Content", value=_fence(message.content), inline=False)
         if message.attachments:
@@ -222,7 +225,9 @@ class AuditLog(commands.Cog):
             value=_fence(after.content) if after.content else "empty",
             inline=False,
         )
-        embed.add_field(name="Jump", value=f"[Open message]({after.jump_url})", inline=False)
+        embed.add_field(
+            name="Jump", value=f"[Open message]({after.jump_url})", inline=False
+        )
 
         await self._emit(guild, embed)
 
@@ -263,7 +268,9 @@ class AuditLog(commands.Cog):
         roles = [role.mention for role in member.roles if not role.is_default()]
         if roles:
             embed.add_field(
-                name="Roles", value=_truncate(", ".join(roles), LIST_LIMIT), inline=False
+                name="Roles",
+                value=_truncate(", ".join(roles), LIST_LIMIT),
+                inline=False,
             )
 
         await self._emit(member.guild, embed)
@@ -351,7 +358,9 @@ class AuditLog(commands.Cog):
     async def on_guild_channel_create(self, channel: discord.abc.GuildChannel) -> None:
         embed = self._embed("Channel created", COLOR_CREATE)
         embed.add_field(
-            name="Channel", value=f"{_mention_of(channel)} (`{channel.id}`)", inline=False
+            name="Channel",
+            value=f"{_mention_of(channel)} (`{channel.id}`)",
+            inline=False,
         )
         embed.add_field(name="Type", value=str(channel.type), inline=False)
         if channel.category is not None:
@@ -364,7 +373,9 @@ class AuditLog(commands.Cog):
         was_log_channel = await self._in_log_channel(guild, channel.id)
 
         embed = self._embed("Channel deleted", COLOR_DELETE)
-        embed.add_field(name="Channel", value=f"#{channel.name} (`{channel.id}`)", inline=False)
+        embed.add_field(
+            name="Channel", value=f"#{channel.name} (`{channel.id}`)", inline=False
+        )
         embed.add_field(name="Type", value=str(channel.type), inline=False)
         await self._emit(guild, embed)
 
@@ -376,7 +387,9 @@ class AuditLog(commands.Cog):
     @commands.Cog.listener()
     async def on_guild_role_create(self, role: discord.Role) -> None:
         embed = self._embed("Role created", COLOR_CREATE)
-        embed.add_field(name="Role", value=f"{role.mention} (`{role.id}`)", inline=False)
+        embed.add_field(
+            name="Role", value=f"{role.mention} (`{role.id}`)", inline=False
+        )
         await self._emit(role.guild, embed)
 
     @commands.Cog.listener()
@@ -413,9 +426,13 @@ class AuditLog(commands.Cog):
             return
 
         embed = self._embed("Role updated", COLOR_UPDATE)
-        embed.add_field(name="Role", value=f"{after.mention} (`{after.id}`)", inline=False)
         embed.add_field(
-            name="Changes", value=_truncate("\n".join(changes), LIST_LIMIT), inline=False
+            name="Role", value=f"{after.mention} (`{after.id}`)", inline=False
+        )
+        embed.add_field(
+            name="Changes",
+            value=_truncate("\n".join(changes), LIST_LIMIT),
+            inline=False,
         )
         await self._emit(after.guild, embed)
 
@@ -488,7 +505,9 @@ class LoggingCommands(commands.GroupCog, name="logs"):
             ephemeral=True,
         )
 
-    @app_commands.command(name="status", description="Show the current audit log channel.")
+    @app_commands.command(
+        name="status", description="Show the current audit log channel."
+    )
     @app_commands.guild_only()
     @app_commands.default_permissions(manage_guild=True)
     async def status_cmd(self, interaction: discord.Interaction) -> None:
@@ -510,7 +529,9 @@ class LoggingCommands(commands.GroupCog, name="logs"):
         embed = discord.Embed(title="Audit Logging", color=discord.Color.blurple())
         embed.add_field(
             name="Channel",
-            value=channel.mention if channel is not None else f"missing (`{channel_id}`)",
+            value=(
+                channel.mention if channel is not None else f"missing (`{channel_id}`)"
+            ),
             inline=False,
         )
 

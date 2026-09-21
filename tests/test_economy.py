@@ -6,6 +6,7 @@ These tests lock down the atomicity guarantees of the wallet primitives
 three games (blackjack, coinflip, slots). The engine already existed and was
 built atomic; this suite confirms it and guards against regressions.
 """
+
 import asyncio
 import random
 from unittest.mock import AsyncMock, MagicMock
@@ -24,7 +25,6 @@ from fyrion.cogs.economy import (
     build_deck,
 )
 from fyrion.database.manager import InsufficientFundsError
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -221,7 +221,9 @@ def test_hand_blackjack_and_bust():
 
 
 def test_payout_player_bust_returns_nothing():
-    outcome, payout = blackjack_payout(100, make_hand("K", "Q", "5"), make_hand("10", "8"))
+    outcome, payout = blackjack_payout(
+        100, make_hand("K", "Q", "5"), make_hand("10", "8")
+    )
     assert payout == 0
     assert "bust" in outcome.lower()
 
@@ -250,7 +252,9 @@ def test_payout_dealer_blackjack_beats_a_regular_21():
 
 
 def test_payout_dealer_bust_pays_even_money():
-    outcome, payout = blackjack_payout(100, make_hand("10", "8"), make_hand("K", "Q", "5"))
+    outcome, payout = blackjack_payout(
+        100, make_hand("10", "8"), make_hand("K", "Q", "5")
+    )
     assert payout == 200
     assert "bust" in outcome.lower()
 

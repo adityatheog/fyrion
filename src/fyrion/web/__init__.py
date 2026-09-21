@@ -5,6 +5,7 @@ The FastAPI application and the uvicorn wrapper are imported lazily so that
 installations which never enable the dashboard do not need FastAPI or uvicorn
 installed.
 """
+
 from __future__ import annotations
 
 from typing import Any

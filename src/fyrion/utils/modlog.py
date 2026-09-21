@@ -17,6 +17,7 @@ Writing to the log is always best effort: a deleted channel, a revoked
 permission or a database hiccup must never fail the moderation action that has
 already happened.
 """
+
 from __future__ import annotations
 
 import logging

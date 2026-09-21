@@ -17,6 +17,7 @@ Both are pure in-memory structures with no I/O, keyed by the caller. The caller
 owns eviction of idle keys (see the ``is_idle`` predicates) so the backing
 dictionaries never grow without bound.
 """
+
 from __future__ import annotations
 
 from collections import deque

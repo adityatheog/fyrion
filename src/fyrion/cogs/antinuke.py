@@ -32,6 +32,7 @@ Safety properties worth stating explicitly:
 * Detection is fail-safe: a broken database query caches a disabled policy
   briefly rather than turning into one failing query per audit-log event.
 """
+
 from __future__ import annotations
 
 import logging
@@ -242,9 +243,7 @@ class AntiNuke(commands.Cog):
     # ------------------------------------------------------------------
 
     @commands.Cog.listener()
-    async def on_audit_log_entry_create(
-        self, entry: discord.AuditLogEntry
-    ) -> None:
+    async def on_audit_log_entry_create(self, entry: discord.AuditLogEntry) -> None:
         guild = entry.guild
         if guild is None:
             return
@@ -595,13 +594,9 @@ class AntiNukeCommands(commands.Cog):
 
         return guild
 
-    @antinuke.command(
-        name="enable", description="Turn AntiNuke protection on or off."
-    )
+    @antinuke.command(name="enable", description="Turn AntiNuke protection on or off.")
     @app_commands.describe(enabled="True arms detection, False disarms it")
-    async def enable_cmd(
-        self, interaction: discord.Interaction, enabled: bool
-    ) -> None:
+    async def enable_cmd(self, interaction: discord.Interaction, enabled: bool) -> None:
         guild = await self._authorize(interaction)
         if guild is None:
             return
@@ -609,12 +604,8 @@ class AntiNukeCommands(commands.Cog):
         await self.repo.set_enabled(guild_id, enabled)
         self._invalidate(guild_id)
         state = "enabled" if enabled else "disabled"
-        note = (
-            "" if enabled else "\nThresholds are kept for when you re-enable it."
-        )
-        await self._reply(
-            interaction, f"✅ AntiNuke is now **{state}**.{note}"
-        )
+        note = "" if enabled else "\nThresholds are kept for when you re-enable it."
+        await self._reply(interaction, f"✅ AntiNuke is now **{state}**.{note}")
 
     @antinuke.command(
         name="threshold",
@@ -662,13 +653,9 @@ class AntiNukeCommands(commands.Cog):
         guild_id = guild.id
         await self.repo.clear_threshold(guild_id, action.value)
         self._invalidate(guild_id)
-        await self._reply(
-            interaction, f"✅ No longer watching **{action.name}**."
-        )
+        await self._reply(interaction, f"✅ No longer watching **{action.name}**.")
 
-    @antinuke.command(
-        name="window", description="Set the detection window in seconds."
-    )
+    @antinuke.command(name="window", description="Set the detection window in seconds.")
     @app_commands.describe(seconds="Length of the sliding detection window")
     async def window_cmd(
         self,
@@ -685,9 +672,7 @@ class AntiNukeCommands(commands.Cog):
             await self._reply(interaction, f"❌ {exc}")
             return
         self._invalidate(guild_id)
-        await self._reply(
-            interaction, f"✅ Detection window set to **{seconds}s**."
-        )
+        await self._reply(interaction, f"✅ Detection window set to **{seconds}s**.")
 
     @antinuke.command(
         name="punishment",
@@ -731,9 +716,7 @@ class AntiNukeCommands(commands.Cog):
                 interaction, f"✅ {actor.mention} is now trusted by AntiNuke."
             )
         else:
-            await self._reply(
-                interaction, f"ℹ️ {actor.mention} was already trusted."
-            )
+            await self._reply(interaction, f"ℹ️ {actor.mention} was already trusted.")
 
     @antinuke.command(
         name="untrust", description="Remove a user or bot from the trusted list."
@@ -749,13 +732,9 @@ class AntiNukeCommands(commands.Cog):
         removed = await self.repo.remove_whitelist(guild_id, actor.id)
         self._invalidate(guild_id)
         if removed:
-            await self._reply(
-                interaction, f"✅ {actor.mention} is no longer trusted."
-            )
+            await self._reply(interaction, f"✅ {actor.mention} is no longer trusted.")
         else:
-            await self._reply(
-                interaction, f"ℹ️ {actor.mention} was not on the list."
-            )
+            await self._reply(interaction, f"ℹ️ {actor.mention} was not on the list.")
 
     @antinuke.command(
         name="status", description="Show AntiNuke settings and the trusted list."

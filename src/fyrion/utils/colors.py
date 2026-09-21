@@ -6,6 +6,7 @@ triplet with or without a leading ``#``/``0x``, or the literal ``random``.
 Invalid input raises :class:`ValueError` carrying a message that is safe to show
 to the user, so callers never have to guess how to phrase the failure.
 """
+
 from __future__ import annotations
 
 import random

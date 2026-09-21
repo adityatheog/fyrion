@@ -9,6 +9,7 @@ confirms that the invoker outranks the target and that the bot does too.
 Reasons are attacker-controlled text, so every reply that echoes one disables
 mention parsing.
 """
+
 from __future__ import annotations
 
 import logging
@@ -147,7 +148,9 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
         embed.add_field(
             name="Moderator", value=f"{moderator} (`{moderator.id}`)", inline=False
         )
-        embed.add_field(name="Reason", value=reason or "No reason provided", inline=False)
+        embed.add_field(
+            name="Reason", value=reason or "No reason provided", inline=False
+        )
         if detail:
             embed.add_field(name="Details", value=detail, inline=False)
 
@@ -184,11 +187,14 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
             await member.kick(reason=self._audit_reason(interaction.user, reason))
         except discord.Forbidden:
             await self._reject(
-                interaction, "Discord refused the kick (missing permission or hierarchy)."
+                interaction,
+                "Discord refused the kick (missing permission or hierarchy).",
             )
             return
 
-        await self._respond(interaction, f"\u2705 Kicked **{member}**. Reason: {reason}")
+        await self._respond(
+            interaction, f"\u2705 Kicked **{member}**. Reason: {reason}"
+        )
         await self._log_action(guild, "Kick", member, interaction.user, reason)
 
     @app_commands.command(
@@ -229,7 +235,8 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
             )
         except discord.Forbidden:
             await self._reject(
-                interaction, "Discord refused the ban (missing permission or hierarchy)."
+                interaction,
+                "Discord refused the ban (missing permission or hierarchy).",
             )
             return
         except discord.NotFound:
@@ -270,7 +277,9 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
             await self._reject(interaction, "I lack the `Ban Members` permission.")
             return
 
-        await self._respond(interaction, f"\u2705 Unbanned **{user}**. Reason: {reason}")
+        await self._respond(
+            interaction, f"\u2705 Unbanned **{user}**. Reason: {reason}"
+        )
         await self._log_action(guild, "Unban", user, interaction.user, reason)
 
     # ------------------------------------------------------------------
@@ -347,7 +356,9 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
             return
 
         try:
-            await member.timeout(None, reason=self._audit_reason(interaction.user, reason))
+            await member.timeout(
+                None, reason=self._audit_reason(interaction.user, reason)
+            )
         except discord.Forbidden:
             await self._reject(interaction, "Discord refused to lift the timeout.")
             return
@@ -361,7 +372,9 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
     # Warnings
     # ------------------------------------------------------------------
 
-    @app_commands.command(name="warn", description="Issue a formal warning to a member.")
+    @app_commands.command(
+        name="warn", description="Issue a formal warning to a member."
+    )
     @app_commands.guild_only()
     @app_commands.default_permissions(moderate_members=True)
     @app_commands.describe(member="The member to warn", reason="Why they are warned")
@@ -378,7 +391,9 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
             return
 
         guild = member.guild
-        await self.warnings.add_warning(guild.id, member.id, interaction.user.id, reason)
+        await self.warnings.add_warning(
+            guild.id, member.id, interaction.user.id, reason
+        )
         total = await self.warnings.count_warnings(guild.id, member.id)
 
         # Notifying the member is best effort: closed DMs are not an error.
@@ -486,7 +501,9 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
         removed = await self.warnings.clear_warnings(member.guild.id, member.id)
         if not removed:
             await self._respond(
-                interaction, f"\u2139\ufe0f **{member}** had no warnings.", ephemeral=True
+                interaction,
+                f"\u2139\ufe0f **{member}** had no warnings.",
+                ephemeral=True,
             )
             return
 
@@ -650,7 +667,8 @@ class Moderation(FyrionCog, commands.GroupCog, name="mod"):
 
         state = "locked" if locked else "unlocked"
         await self._respond(
-            interaction, f"\u2705 {channel.mention} is now **{state}**. Reason: {reason}"
+            interaction,
+            f"\u2705 {channel.mention} is now **{state}**. Reason: {reason}",
         )
 
 

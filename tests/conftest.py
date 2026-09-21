@@ -1,6 +1,7 @@
 """
 Shared fixtures for Fyrion's pytest suite.
 """
+
 import os
 
 os.environ.setdefault("DISCORD_TOKEN", "test_token_for_local_pytest_runs")

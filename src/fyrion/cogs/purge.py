@@ -25,6 +25,7 @@ deleted rather than what was requested.
 Replies are ephemeral. A purge confirmation posted publicly is itself channel
 noise, and the deleted content is never echoed back.
 """
+
 from __future__ import annotations
 
 import logging

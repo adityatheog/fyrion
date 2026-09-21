@@ -15,6 +15,7 @@ so it composes with both ``commands.Cog`` and ``commands.GroupCog`` subclasses
 without disturbing discord.py's cog metaclass or the group a ``GroupCog`` builds
 from its ``name=`` keyword.
 """
+
 from __future__ import annotations
 
 import logging

@@ -16,6 +16,7 @@ Safety properties:
 * The preview view is bound to its author and expires, so an abandoned draft
   cannot be sent later by someone else.
 """
+
 from __future__ import annotations
 
 import logging
@@ -102,7 +103,9 @@ class EmbedPreviewView(discord.ui.View):
             return False
         return True
 
-    @discord.ui.button(label="Send", style=discord.ButtonStyle.success, emoji="\U0001f4e4")
+    @discord.ui.button(
+        label="Send", style=discord.ButtonStyle.success, emoji="\U0001f4e4"
+    )
     async def send_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
@@ -126,9 +129,7 @@ class EmbedPreviewView(discord.ui.View):
                     return
 
         try:
-            message = await channel.send(
-                embed=self.embed, allowed_mentions=NO_MENTIONS
-            )
+            message = await channel.send(embed=self.embed, allowed_mentions=NO_MENTIONS)
         except discord.Forbidden:
             await interaction.response.edit_message(
                 content="\u274c Discord refused to post the embed there.",

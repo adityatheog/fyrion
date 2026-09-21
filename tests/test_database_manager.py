@@ -4,6 +4,7 @@ Integration tests for the pooled database manager.
 These run against an in-memory SQLite database, so they exercise the real
 schema, the real PRAGMAs and the real SQL rather than mocks.
 """
+
 import pytest
 import pytest_asyncio
 
@@ -31,9 +32,7 @@ async def pool():
 
 @pytest.mark.asyncio
 async def test_schema_creates_every_declared_table(pool):
-    rows = await pool.fetchall(
-        "SELECT name FROM sqlite_master WHERE type = 'table'"
-    )
+    rows = await pool.fetchall("SELECT name FROM sqlite_master WHERE type = 'table'")
     existing = {row["name"] for row in rows}
     for table in TABLE_COLUMNS:
         assert table in existing
@@ -158,9 +157,7 @@ async def test_deleting_a_guild_cascades(pool):
         guild_id=GUILD_A, action="warn", target_id=USER, moderator_id=1
     )
     await pool.get_economy_account(GUILD_A, USER)
-    await pool.create_support_ticket(
-        guild_id=GUILD_A, channel_id=9001, user_id=USER
-    )
+    await pool.create_support_ticket(guild_id=GUILD_A, channel_id=9001, user_id=USER)
 
     await pool.delete_guild(GUILD_A)
 

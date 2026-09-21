@@ -13,6 +13,7 @@ file. Two formats are supported:
 The console handler follows ``LOG_LEVEL``; the rotating file handler always
 records DEBUG, so a post-mortem has full detail even when the console is quiet.
 """
+
 from __future__ import annotations
 
 import json

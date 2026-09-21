@@ -1,15 +1,19 @@
 """
 Security and whitelist repository.
 """
+
 from typing import Any
 
 import aiosqlite
+
 
 class SecurityRepository:
     def __init__(self, db: Any):
         self.db = db
 
-    async def add_whitelist(self, guild_id: int, entity_id: int, entity_type: str) -> None:
+    async def add_whitelist(
+        self, guild_id: int, entity_id: int, entity_type: str
+    ) -> None:
         """Adds an entity to the anti-link whitelist. Ignores duplicates."""
         # ``whitelists`` has a foreign key onto ``guild_configs``, so make sure
         # the parent row exists before inserting. A brand-new guild may never
@@ -25,7 +29,9 @@ class SecurityRepository:
         """
         await self.db.execute(query, (guild_id, entity_id, entity_type))
 
-    async def remove_whitelist(self, guild_id: int, entity_id: int, entity_type: str) -> None:
+    async def remove_whitelist(
+        self, guild_id: int, entity_id: int, entity_type: str
+    ) -> None:
         """Removes an entity from the anti-link whitelist."""
         query = "DELETE FROM whitelists WHERE guild_id = ? AND entity_id = ? AND entity_type = ?"
         await self.db.execute(query, (guild_id, entity_id, entity_type))

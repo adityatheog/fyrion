@@ -35,6 +35,7 @@ Conventions:
 * Guild-scoped tables cascade from ``guild_settings`` so removing a guild leaves
   no orphaned rows behind.
 """
+
 from __future__ import annotations
 
 from typing import Final
@@ -793,9 +794,7 @@ TABLE_COLUMNS: Final[dict[str, frozenset[str]]] = {
             "updated_at",
         }
     ),
-    "antinuke_whitelist": frozenset(
-        {"guild_id", "actor_id", "added_by", "created_at"}
-    ),
+    "antinuke_whitelist": frozenset({"guild_id", "actor_id", "added_by", "created_at"}),
     "economy_shop_items": frozenset(
         {
             "item_id",
@@ -812,9 +811,7 @@ TABLE_COLUMNS: Final[dict[str, frozenset[str]]] = {
             "created_at",
         }
     ),
-    "economy_cooldowns": frozenset(
-        {"guild_id", "user_id", "action", "available_at"}
-    ),
+    "economy_cooldowns": frozenset({"guild_id", "user_id", "action", "available_at"}),
 }
 
 # Default conflict target for upserts.
@@ -900,9 +897,7 @@ REACTION_ROLE_MODES: Final[frozenset[str]] = frozenset(
     {"toggle", "add_only", "remove_only", "unique"}
 )
 # Mirrors the CHECK constraint on antinuke_settings.punishment.
-ANTINUKE_PUNISHMENTS: Final[frozenset[str]] = frozenset(
-    {"strip_roles", "kick", "ban"}
-)
+ANTINUKE_PUNISHMENTS: Final[frozenset[str]] = frozenset({"strip_roles", "kick", "ban"})
 # The per-action threshold columns AntiNuke watches, mapped to a human label.
 ANTINUKE_ACTIONS: Final[dict[str, str]] = {
     "ban": "Member bans",

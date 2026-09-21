@@ -11,6 +11,7 @@ path, so they are deliberately linear: alternations of literals and bounded
 character classes only, with no nested quantifiers that could backtrack
 explosively.
 """
+
 from __future__ import annotations
 
 import re

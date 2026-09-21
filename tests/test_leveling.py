@@ -5,6 +5,7 @@ give_rep claims the giver's cooldown and credits the recipient inside a single
 transaction, so the two can never diverge (a burned cooldown with no point, or
 a point with no cooldown).
 """
+
 import pytest
 
 from fyrion.database.repositories.leveling import LevelingRepository

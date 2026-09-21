@@ -4,6 +4,7 @@ Unit tests for the dashboard's cryptographic session helpers.
 These use only the standard library plus fyrion.web.security, so they run even
 when the FastAPI extras are not installed.
 """
+
 import time
 
 import pytest
@@ -180,7 +181,9 @@ def _dashboard_ready(monkeypatch):
         Config, "DASHBOARD_BASE_URL", "http://127.0.0.1:8080", raising=False
     )
     monkeypatch.setattr(Config, "DASHBOARD_ALLOWED_ORIGINS", (), raising=False)
-    monkeypatch.setattr(Config, "DASHBOARD_TRUSTED_HOSTS", ("localhost",), raising=False)
+    monkeypatch.setattr(
+        Config, "DASHBOARD_TRUSTED_HOSTS", ("localhost",), raising=False
+    )
 
 
 def test_dashboard_validation_requires_a_signing_key(monkeypatch):

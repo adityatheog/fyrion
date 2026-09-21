@@ -25,6 +25,7 @@ Design notes worth stating explicitly:
 * Display names are attacker controlled, so every reply disables mention parsing
   except for the single member a level-up announcement addresses.
 """
+
 from __future__ import annotations
 
 import logging
@@ -367,7 +368,11 @@ class Leveling(commands.Cog):
         keep_rows = top_tier if strip_lower else earned
         keep_ids = {int(row["role_id"]) for row in keep_rows}
         drop_ids = (
-            {int(row["role_id"]) for row in earned if int(row["role_id"]) not in keep_ids}
+            {
+                int(row["role_id"])
+                for row in earned
+                if int(row["role_id"]) not in keep_ids
+            }
             if strip_lower
             else set()
         )
@@ -545,9 +550,7 @@ class Leveling(commands.Cog):
         )
         embed.set_thumbnail(url=target.display_avatar.url)
         embed.add_field(name="Level", value=str(level), inline=True)
-        embed.add_field(
-            name="Rank", value=f"#{rank} of {max(tracked, 1)}", inline=True
-        )
+        embed.add_field(name="Rank", value=f"#{rank} of {max(tracked, 1)}", inline=True)
         embed.add_field(name="Reputation", value=str(reputation), inline=True)
 
         if required > 0:
@@ -626,8 +629,7 @@ class Leveling(commands.Cog):
             level = level_from_xp(total_xp)
             prefix = MEDALS[index - 1] if index <= len(MEDALS) else f"**{index}.**"
             lines.append(
-                f"{prefix} <@{user_id}> \u2014 level **{level}** "
-                f"({total_xp:,} XP)"
+                f"{prefix} <@{user_id}> \u2014 level **{level}** " f"({total_xp:,} XP)"
             )
 
         embed = discord.Embed(
@@ -715,9 +717,7 @@ class Leveling(commands.Cog):
             text=f"One point every {REP_COOLDOWN_SECONDS // 3600} hours per member."
         )
 
-        await interaction.followup.send(
-            embed=embed, allowed_mentions=NOTICE_MENTIONS
-        )
+        await interaction.followup.send(embed=embed, allowed_mentions=NOTICE_MENTIONS)
 
     # ------------------------------------------------------------------
     # /level-toggle
@@ -811,9 +811,7 @@ class Leveling(commands.Cog):
         guild, member = context
 
         if channel is None:
-            await self.repo.update_settings(
-                guild.id, leveling_announce_channel_id=None
-            )
+            await self.repo.update_settings(guild.id, leveling_announce_channel_id=None)
             self.invalidate(guild.id)
             await self._audit(
                 guild, member, "Announcement channel cleared", "Channel cleared"
@@ -1012,8 +1010,10 @@ class Leveling(commands.Cog):
             flags: list[str] = []
             if row.get("remove_previous"):
                 flags.append("removes lower tiers")
-            if role is not None and me is not None and (
-                role.managed or role.is_default() or me.top_role <= role
+            if (
+                role is not None
+                and me is not None
+                and (role.managed or role.is_default() or me.top_role <= role)
             ):
                 flags.append("\u26a0\ufe0f not assignable by me")
 
@@ -1031,7 +1031,11 @@ class Leveling(commands.Cog):
         embed.set_footer(
             text=(
                 "Stacking: "
-                + ("every earned role is kept" if settings.stack_rewards else "only the highest tier is kept")
+                + (
+                    "every earned role is kept"
+                    if settings.stack_rewards
+                    else "only the highest tier is kept"
+                )
             )
         )
 

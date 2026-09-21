@@ -37,6 +37,7 @@ Safety properties worth stating explicitly:
 * Word lists are ``re.escape``-d before compilation, so no operator input is
   ever interpreted as a pattern.
 """
+
 from __future__ import annotations
 
 import logging
@@ -481,9 +482,7 @@ class AutoMod(commands.Cog):
 
         return None
 
-    async def _check_spam(
-        self, message: discord.Message, rule: dict[str, Any]
-    ) -> bool:
+    async def _check_spam(self, message: discord.Message, rule: dict[str, Any]) -> bool:
         """Applies the token bucket. Returns True when the message was actioned."""
         guild = message.guild
         if guild is None:
@@ -523,9 +522,7 @@ class AutoMod(commands.Cog):
             outcome = "logged (no action taken)"
         elif strikes >= strike_limit and action != "delete":
             bucket.strikes = 0
-            escalation = await self._escalate(
-                message, rule, "AutoMod: repeated spam"
-            )
+            escalation = await self._escalate(message, rule, "AutoMod: repeated spam")
             outcome = f"message deleted, {escalation}"
         else:
             outcome = "message deleted"
@@ -644,9 +641,7 @@ class AutoMod(commands.Cog):
             if not me.guild_permissions.ban_members:
                 return "ban skipped (missing Ban Members)"
             try:
-                await guild.ban(
-                    member, reason=audit_reason, delete_message_seconds=0
-                )
+                await guild.ban(member, reason=audit_reason, delete_message_seconds=0)
             except discord.Forbidden:
                 return "ban refused by Discord"
             except discord.HTTPException as exc:
@@ -765,9 +760,7 @@ class AutoMod(commands.Cog):
         embed.add_field(name="Trigger", value=detail, inline=False)
         embed.add_field(name="Action", value=outcome, inline=False)
         if message.content:
-            embed.add_field(
-                name="Content", value=_fence(message.content), inline=False
-            )
+            embed.add_field(name="Content", value=_fence(message.content), inline=False)
 
         await send_log(self.db, guild, embed)
 
@@ -814,7 +807,9 @@ class AutoModCommands(commands.Cog):
 
         rule_type = str(rule.get("rule_type") or "")
         options = load_options(rule.get("pattern"))
-        lines = [f"**{_state(rule.get('enabled'))}** \u2022 action: `{rule.get('action')}`"]
+        lines = [
+            f"**{_state(rule.get('enabled'))}** \u2022 action: `{rule.get('action')}`"
+        ]
 
         if rule_type == "spam":
             lines.append(
@@ -839,9 +834,7 @@ class AutoModCommands(commands.Cog):
             lines.append(f"{len(words)} word(s), matching {mode}")
 
         if str(rule.get("action")) in {"timeout"}:
-            lines.append(
-                f"timeout: {_as_int(rule.get('duration_seconds'), 300)}s"
-            )
+            lines.append(f"timeout: {_as_int(rule.get('duration_seconds'), 300)}s")
         return "\n".join(lines)
 
     async def _save(
@@ -863,9 +856,7 @@ class AutoModCommands(commands.Cog):
         try:
             rule = await self.repo.save_rule(guild_id, rule_type, values)
         except ValueError as exc:
-            await interaction.response.send_message(
-                f"\u274c {exc}", ephemeral=True
-            )
+            await interaction.response.send_message(f"\u274c {exc}", ephemeral=True)
             return
 
         self._invalidate(guild_id)
@@ -908,9 +899,7 @@ class AutoModCommands(commands.Cog):
     @app_commands.guild_only()
     @app_commands.default_permissions(manage_guild=True)
     @app_commands.describe(enabled="True arms every enabled filter, False disarms all")
-    async def enable_cmd(
-        self, interaction: discord.Interaction, enabled: bool
-    ) -> None:
+    async def enable_cmd(self, interaction: discord.Interaction, enabled: bool) -> None:
         guild_id = interaction.guild_id
         assert guild_id is not None
 
@@ -1018,7 +1007,9 @@ class AutoModCommands(commands.Cog):
         interaction: discord.Interaction,
         enabled: bool,
         action: Optional[ActionLiteral] = None,
-        timeout_seconds: Optional[app_commands.Range[int, 60, MAX_TIMEOUT_SECONDS]] = None,
+        timeout_seconds: Optional[
+            app_commands.Range[int, 60, MAX_TIMEOUT_SECONDS]
+        ] = None,
     ) -> None:
         await self._save(
             interaction,
@@ -1043,7 +1034,9 @@ class AutoModCommands(commands.Cog):
         interaction: discord.Interaction,
         enabled: bool,
         action: Optional[ActionLiteral] = None,
-        timeout_seconds: Optional[app_commands.Range[int, 60, MAX_TIMEOUT_SECONDS]] = None,
+        timeout_seconds: Optional[
+            app_commands.Range[int, 60, MAX_TIMEOUT_SECONDS]
+        ] = None,
     ) -> None:
         await self._save(
             interaction,
@@ -1074,7 +1067,9 @@ class AutoModCommands(commands.Cog):
         seconds: Optional[app_commands.Range[int, 1, 120]] = None,
         strikes: Optional[app_commands.Range[int, 1, 10]] = None,
         action: Optional[ActionLiteral] = None,
-        timeout_seconds: Optional[app_commands.Range[int, 60, MAX_TIMEOUT_SECONDS]] = None,
+        timeout_seconds: Optional[
+            app_commands.Range[int, 60, MAX_TIMEOUT_SECONDS]
+        ] = None,
     ) -> None:
         values = self._base_values(enabled, action, timeout_seconds)
         if messages is not None:
@@ -1111,7 +1106,9 @@ class AutoModCommands(commands.Cog):
         percent: Optional[app_commands.Range[int, 50, 100]] = None,
         min_length: Optional[app_commands.Range[int, 4, 500]] = None,
         action: Optional[ActionLiteral] = None,
-        timeout_seconds: Optional[app_commands.Range[int, 60, MAX_TIMEOUT_SECONDS]] = None,
+        timeout_seconds: Optional[
+            app_commands.Range[int, 60, MAX_TIMEOUT_SECONDS]
+        ] = None,
     ) -> None:
         guild_id = interaction.guild_id
         assert guild_id is not None
@@ -1151,7 +1148,9 @@ class AutoModCommands(commands.Cog):
         enabled: bool,
         max_mentions: Optional[app_commands.Range[int, 1, 50]] = None,
         action: Optional[ActionLiteral] = None,
-        timeout_seconds: Optional[app_commands.Range[int, 60, MAX_TIMEOUT_SECONDS]] = None,
+        timeout_seconds: Optional[
+            app_commands.Range[int, 60, MAX_TIMEOUT_SECONDS]
+        ] = None,
     ) -> None:
         values = self._base_values(enabled, action, timeout_seconds)
         if max_mentions is not None:
@@ -1182,7 +1181,9 @@ class AutoModCommands(commands.Cog):
         enabled: bool,
         max_lines: Optional[app_commands.Range[int, 2, 100]] = None,
         action: Optional[ActionLiteral] = None,
-        timeout_seconds: Optional[app_commands.Range[int, 60, MAX_TIMEOUT_SECONDS]] = None,
+        timeout_seconds: Optional[
+            app_commands.Range[int, 60, MAX_TIMEOUT_SECONDS]
+        ] = None,
     ) -> None:
         values = self._base_values(enabled, action, timeout_seconds)
         if max_lines is not None:
@@ -1309,12 +1310,11 @@ class AutoModCommands(commands.Cog):
         rule = await self.repo.get_rule(guild_id, "word")
 
         if not words:
-            await interaction.response.send_message\
-                (
-                    "\u2139\ufe0f No words are blocked in this server. Add some "
-                    "with `/automod-wordfilter add`.",
-                    ephemeral=True,
-                )
+            await interaction.response.send_message(
+                "\u2139\ufe0f No words are blocked in this server. Add some "
+                "with `/automod-wordfilter add`.",
+                ephemeral=True,
+            )
             return
 
         embed = discord.Embed(

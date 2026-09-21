@@ -30,6 +30,7 @@ Safety properties worth stating explicitly:
 * ``/banner`` needs a REST fetch, because banners are not part of the gateway
   user payload; the command defers first so the interaction cannot expire.
 """
+
 from __future__ import annotations
 
 import ast
@@ -337,9 +338,7 @@ def _eval_node(node: ast.AST) -> Any:
     if isinstance(node, ast.BinOp):
         handler = _BINARY_OPS.get(type(node.op))
         if handler is None:
-            raise CalculatorError(
-                "Only + - * / // % and ** are supported operators."
-            )
+            raise CalculatorError("Only + - * / // % and ** are supported operators.")
 
         left = _eval_node(node.left)
         right = _eval_node(node.right)
@@ -348,9 +347,7 @@ def _eval_node(node: ast.AST) -> Any:
             # Python has no arithmetic timeout, so an oversized exponent is
             # refused before it is ever computed.
             if abs(right) > MAX_EXPONENT:
-                raise CalculatorError(
-                    f"Exponents are limited to {MAX_EXPONENT}."
-                )
+                raise CalculatorError(f"Exponents are limited to {MAX_EXPONENT}.")
             if abs(left) > 1e6 and abs(right) > 16:
                 raise CalculatorError("That power would be too large to compute.")
 
@@ -361,7 +358,9 @@ def _eval_node(node: ast.AST) -> Any:
         except OverflowError:
             raise CalculatorError("That result is too large to compute.") from None
         except (TypeError, ValueError) as exc:
-            raise CalculatorError(f"That expression could not be evaluated ({exc}).") from None
+            raise CalculatorError(
+                f"That expression could not be evaluated ({exc})."
+            ) from None
 
         return _check_magnitude(result)
 
@@ -439,9 +438,7 @@ def evaluate(expression: str) -> Any:
     try:
         tree = ast.parse(text, mode="eval")
     except SyntaxError as exc:
-        raise CalculatorError(
-            f"That is not a valid expression ({exc.msg})."
-        ) from None
+        raise CalculatorError(f"That is not a valid expression ({exc.msg}).") from None
     except (ValueError, MemoryError, RecursionError):
         raise CalculatorError("That expression could not be parsed.") from None
 
@@ -616,9 +613,7 @@ class Utility(commands.Cog):
                 (int(guild_id), int(user_id)),
             )
         except Exception:
-            log.exception(
-                "Could not record an AFK mention for member %s.", user_id
-            )
+            log.exception("Could not record an AFK mention for member %s.", user_id)
 
     # ------------------------------------------------------------------
     # AFK listener
@@ -854,13 +849,15 @@ class Utility(commands.Cog):
 
         gateway = self.bot.latency * 1000.0
         database = await self._database_latency()
-        round_trip = (
-            utcnow() - interaction.created_at
-        ).total_seconds() * 1000.0
+        round_trip = (utcnow() - interaction.created_at).total_seconds() * 1000.0
 
         embed = discord.Embed(
             title="\U0001f3d3 Pong",
-            color=discord.Color.green() if database is not None else discord.Color.orange(),
+            color=(
+                discord.Color.green()
+                if database is not None
+                else discord.Color.orange()
+            ),
         )
         embed.add_field(name="Gateway", value=format_latency(gateway), inline=True)
         embed.add_field(
@@ -969,13 +966,9 @@ class Utility(commands.Cog):
         embed.add_field(
             name="Shards", value=str(self.bot.shard_count or 1), inline=True
         )
-        embed.add_field(
-            name="Modules", value=str(len(self.bot.cogs)), inline=True
-        )
+        embed.add_field(name="Modules", value=str(len(self.bot.cogs)), inline=True)
 
-        embed.add_field(
-            name="Python", value=platform.python_version(), inline=True
-        )
+        embed.add_field(name="Python", value=platform.python_version(), inline=True)
         embed.add_field(name="discord.py", value=discord.__version__, inline=True)
         embed.add_field(name="Platform", value=sys.platform, inline=True)
 
@@ -986,9 +979,7 @@ class Utility(commands.Cog):
         )
 
         commands_total = len(self.bot.tree.get_commands())
-        embed.add_field(
-            name="Slash commands", value=str(commands_total), inline=True
-        )
+        embed.add_field(name="Slash commands", value=str(commands_total), inline=True)
 
         if self.db is not None:
             try:
@@ -1206,9 +1197,7 @@ class Utility(commands.Cog):
         embed.add_field(
             name="Categories", value=str(len(guild.categories)), inline=True
         )
-        embed.add_field(
-            name="Threads", value=str(len(guild.threads)), inline=True
-        )
+        embed.add_field(name="Threads", value=str(len(guild.threads)), inline=True)
         embed.add_field(
             name="Emoji / stickers",
             value=f"{len(guild.emojis)} / {len(guild.stickers)}",
@@ -1223,9 +1212,7 @@ class Utility(commands.Cog):
         embed.add_field(
             name="Verification", value=str(guild.verification_level), inline=True
         )
-        embed.add_field(
-            name="Shard", value=str(guild.shard_id), inline=True
-        )
+        embed.add_field(name="Shard", value=str(guild.shard_id), inline=True)
 
         embed.add_field(
             name="Created",
@@ -1263,9 +1250,7 @@ class Utility(commands.Cog):
     ) -> None:
         target: discord.abc.User = user or interaction.user
 
-        embed = discord.Embed(
-            title=f"Avatar: {target}", color=discord.Color.blurple()
-        )
+        embed = discord.Embed(title=f"Avatar: {target}", color=discord.Color.blurple())
         embed.set_image(url=target.display_avatar.url)
 
         links = [f"[Global avatar]({target.display_avatar.url})"]
@@ -1386,8 +1371,12 @@ class Utility(commands.Cog):
         embed.add_field(
             name="Mentionable", value="yes" if role.mentionable else "no", inline=True
         )
-        embed.add_field(name="Hoisted", value="yes" if role.hoist else "no", inline=True)
-        embed.add_field(name="Managed", value="yes" if role.managed else "no", inline=True)
+        embed.add_field(
+            name="Hoisted", value="yes" if role.hoist else "no", inline=True
+        )
+        embed.add_field(
+            name="Managed", value="yes" if role.managed else "no", inline=True
+        )
 
         embed.add_field(
             name="Color",
@@ -1490,9 +1479,7 @@ class Utility(commands.Cog):
     @app_commands.guild_only()
     @app_commands.describe(
         question="What you are asking",
-        options=(
-            "Up to 10 options, comma separated. Leave empty for a yes/no poll."
-        ),
+        options=("Up to 10 options, comma separated. Leave empty for a yes/no poll."),
         channel="Where to post the poll (defaults to this channel)",
         minutes="Automatically post the results after this many minutes",
         mention_everyone="Ping @everyone (needs Mention Everyone in that channel)",
@@ -1531,9 +1518,7 @@ class Utility(commands.Cog):
         # The invoker must be able to post there themselves; Fyrion's own
         # permission is not a substitute for theirs.
         invoker_permissions = target.permissions_for(member)
-        if not (
-            invoker_permissions.view_channel and invoker_permissions.send_messages
-        ):
+        if not (invoker_permissions.view_channel and invoker_permissions.send_messages):
             await interaction.response.send_message(
                 f"\u274c You cannot post in {target.mention}.", ephemeral=True
             )
@@ -1602,8 +1587,10 @@ class Utility(commands.Cog):
                 choices.append(trimmed)
             emoji = POLL_EMOJI[: len(choices)]
 
-        ping = mention_everyone and invoker_permissions.mention_everyone and (
-            permissions.mention_everyone
+        ping = (
+            mention_everyone
+            and invoker_permissions.mention_everyone
+            and (permissions.mention_everyone)
         )
         if mention_everyone and not ping:
             await interaction.response.send_message(
@@ -1616,13 +1603,14 @@ class Utility(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         closes_at: datetime | None = None
-        description_lines = [
-            f"{icon} {choice}" for icon, choice in zip(emoji, choices)
-        ]
+        description_lines = [f"{icon} {choice}" for icon, choice in zip(emoji, choices)]
         if minutes is not None:
-            closes_at = utcnow() + discord.utils.utcnow().replace(
-                tzinfo=timezone.utc
-            ).utcoffset() if False else utcnow()
+            closes_at = (
+                utcnow()
+                + discord.utils.utcnow().replace(tzinfo=timezone.utc).utcoffset()
+                if False
+                else utcnow()
+            )
             # Computed explicitly to keep the intent obvious.
             closes_at = utcnow().fromtimestamp(
                 utcnow().timestamp() + minutes * 60, tz=timezone.utc

@@ -28,6 +28,7 @@ The errors named in the specification are handled explicitly:
 ``CheckFailure`` (last, since it is the base class of the others),
 ``discord.NotFound`` and ``discord.Forbidden``.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -80,9 +81,7 @@ def format_permissions(names: Sequence[Any]) -> str:
     """Renders a permission list the way Discord's own UI labels them."""
     if not names:
         return "`Unknown`"
-    return ", ".join(
-        f"`{str(name).replace('_', ' ').title()}`" for name in names
-    )
+    return ", ".join(f"`{str(name).replace('_', ' ').title()}`" for name in names)
 
 
 def format_roles(names: Sequence[Any]) -> str:
@@ -245,8 +244,7 @@ def describe_original(original: BaseException) -> ErrorResponse | None:
         return ErrorResponse(
             title="\u274c Storage is busy",
             description=(
-                "The database is busy right now. Please try that again in a "
-                "moment."
+                "The database is busy right now. Please try that again in a " "moment."
             ),
             color=COLOR_FAILURE,
             expected=False,
@@ -275,8 +273,7 @@ def describe_original(original: BaseException) -> ErrorResponse | None:
         return ErrorResponse(
             title="\u23f3 Rate limited",
             description=(
-                "Discord is rate limiting Fyrion. Please try again in a few "
-                "seconds."
+                "Discord is rate limiting Fyrion. Please try again in a few " "seconds."
             ),
             color=COLOR_COOLDOWN,
         )

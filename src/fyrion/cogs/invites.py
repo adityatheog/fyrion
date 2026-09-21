@@ -1,6 +1,7 @@
 """
 Invite tracking and statistics cog.
 """
+
 import logging
 import discord
 from discord import app_commands
@@ -11,9 +12,10 @@ from fyrion.database.repositories.invites import InviteRepository
 
 log = logging.getLogger("fyrion.cogs.invites")
 
+
 class Invites(commands.Cog):
     """Tracks invites and calculates user statistics."""
-    
+
     def __init__(self, bot: Fyrion) -> None:
         self.bot = bot
         self.repo = InviteRepository(bot.db)
@@ -24,9 +26,15 @@ class Invites(commands.Cog):
         """Fetches and caches all invites for a guild."""
         try:
             invites = await guild.invites()
-            self.cache[guild.id] = {invite.code: invite.uses for invite in invites if invite.uses is not None}
+            self.cache[guild.id] = {
+                invite.code: invite.uses
+                for invite in invites
+                if invite.uses is not None
+            }
         except discord.Forbidden:
-            log.debug(f"Missing 'Manage Guild' permissions in {guild.id}. Cannot track invites.")
+            log.debug(
+                f"Missing 'Manage Guild' permissions in {guild.id}. Cannot track invites."
+            )
         except discord.HTTPException as e:
             log.warning(f"Failed to fetch invites for {guild.id}: {e}")
 
@@ -61,7 +69,7 @@ class Invites(commands.Cog):
             return
 
         old_invites = self.cache.get(guild.id, {})
-        
+
         try:
             new_invites = await guild.invites()
         except discord.Forbidden:
@@ -75,7 +83,9 @@ class Invites(commands.Cog):
                 break
 
         # Update cache for next join
-        self.cache[guild.id] = {inv.code: inv.uses for inv in new_invites if inv.uses is not None}
+        self.cache[guild.id] = {
+            inv.code: inv.uses for inv in new_invites if inv.uses is not None
+        }
 
         # Credit the inviter
         if used_invite and used_invite.inviter:
@@ -86,7 +96,9 @@ class Invites(commands.Cog):
         """Process leaves to calculate net invites."""
         await self.repo.add_leave(member.guild.id, member.id)
 
-    @app_commands.command(name="invites", description="Check how many members someone has invited.")
+    @app_commands.command(
+        name="invites", description="Check how many members someone has invited."
+    )
     @app_commands.guild_only()
     @app_commands.describe(member="The member to check (defaults to yourself)")
     async def invites_cmd(
@@ -98,19 +110,23 @@ class Invites(commands.Cog):
             )
             return
         target = member or interaction.user
-        
+
         stats = await self.repo.get_stats(interaction.guild_id, target.id)
-        
+
         embed = discord.Embed(
-            title=f"Invites for {target.display_name}",
-            color=discord.Color.teal()
+            title=f"Invites for {target.display_name}", color=discord.Color.teal()
         )
-        embed.set_thumbnail(url=target.display_avatar.url if target.display_avatar else None)
+        embed.set_thumbnail(
+            url=target.display_avatar.url if target.display_avatar else None
+        )
         embed.add_field(name="Total Joins", value=f"✅ {stats['joins']}", inline=True)
         embed.add_field(name="Total Leaves", value=f"❌ {stats['leaves']}", inline=True)
-        embed.add_field(name="Net Invites", value=f"📊 **{stats['net']}**", inline=False)
-        
+        embed.add_field(
+            name="Net Invites", value=f"📊 **{stats['net']}**", inline=False
+        )
+
         await interaction.response.send_message(embed=embed)
+
 
 async def setup(bot: Fyrion) -> None:
     await bot.add_cog(Invites(bot))

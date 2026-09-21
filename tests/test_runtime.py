@@ -4,6 +4,7 @@ Tests for the process supervisor, intents, cog discovery and configuration.
 No network access and no real Discord client: the bot and dashboard are replaced
 with stubs so the concurrency and shutdown logic can be exercised directly.
 """
+
 import asyncio
 import logging
 
@@ -14,7 +15,6 @@ from fyrion import runtime
 from fyrion.bot import build_intents, discover_extensions
 from fyrion.config import Config, ConfigurationError
 from fyrion.logging.logger import JsonFormatter, setup_logging
-
 
 # ---------------------------------------------------------------------------
 # Intents
@@ -55,9 +55,7 @@ def test_discover_extensions_finds_shipped_cogs():
     assert "fyrion.cogs.automod" in extensions
     assert "fyrion.cogs.help" in extensions
     # Private helper modules must not be treated as extensions.
-    assert all(
-        not name.rsplit(".", 1)[-1].startswith("_") for name in extensions
-    )
+    assert all(not name.rsplit(".", 1)[-1].startswith("_") for name in extensions)
 
 
 def test_discover_extensions_excludes_the_shared_base():
@@ -123,9 +121,7 @@ def test_dashboard_rejects_wildcard_cors(monkeypatch):
     monkeypatch.setattr(Config, "DISCORD_CLIENT_ID", "1234567890", raising=False)
     monkeypatch.setattr(Config, "DISCORD_CLIENT_SECRET", "secret-value", raising=False)
     monkeypatch.setattr(Config, "DASHBOARD_SECRET_KEY", "x" * 48, raising=False)
-    monkeypatch.setattr(
-        Config, "DASHBOARD_ALLOWED_ORIGINS", ("*",), raising=False
-    )
+    monkeypatch.setattr(Config, "DASHBOARD_ALLOWED_ORIGINS", ("*",), raising=False)
 
     with pytest.raises(ConfigurationError) as excinfo:
         Config.validate()

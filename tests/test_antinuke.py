@@ -6,6 +6,7 @@ fake guild and a fake event stream, so no live gateway is needed. The database
 is a real in-memory pool, so moderation cases and settings round-trip through
 the actual schema and CRUD helpers.
 """
+
 import time
 
 import pytest
@@ -327,7 +328,9 @@ async def test_strip_roles_removes_manageable_roles_only(pool):
     managed = FakeRole(5, managed=True)
     normal = FakeRole(10)
     above_bot = FakeRole(200)  # higher than the bot's top role (100)
-    member = FakeMember(ACTOR_ID, top_position=10, roles=[everyone, managed, normal, above_bot])
+    member = FakeMember(
+        ACTOR_ID, top_position=10, roles=[everyone, managed, normal, above_bot]
+    )
     guild.add_member(member)
 
     for _ in range(2):

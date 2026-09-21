@@ -1,15 +1,19 @@
 """
 Invite tracking repository.
 """
+
 from typing import Any
 
 import aiosqlite
+
 
 class InviteRepository:
     def __init__(self, db: Any):
         self.db = db
 
-    async def add_join(self, guild_id: int, joined_user_id: int, inviter_id: int) -> None:
+    async def add_join(
+        self, guild_id: int, joined_user_id: int, inviter_id: int
+    ) -> None:
         """Records a user join and credits the inviter."""
         # ``member_inviters`` and ``invite_stats`` both hold a foreign key onto
         # ``guild_configs``. On a brand-new guild that row may not exist yet, so
@@ -37,9 +41,11 @@ class InviteRepository:
     async def add_leave(self, guild_id: int, leaving_user_id: int) -> None:
         """Processes a user leave and penalizes the original inviter."""
         # 1. Find who invited them
-        query_find = "SELECT inviter_id FROM member_inviters WHERE guild_id = ? AND user_id = ?"
+        query_find = (
+            "SELECT inviter_id FROM member_inviters WHERE guild_id = ? AND user_id = ?"
+        )
         row = await self.db.fetchrow(query_find, (guild_id, leaving_user_id))
-        
+
         if row:
             inviter_id = row["inviter_id"]
             # 2. Increment the inviter's leave count
@@ -48,16 +54,20 @@ class InviteRepository:
                 WHERE guild_id = ? AND user_id = ?
             """
             await self.db.execute(query_stats, (guild_id, inviter_id))
-            
+
             # 3. Clean up the link to save space
-            query_clean = "DELETE FROM member_inviters WHERE guild_id = ? AND user_id = ?"
+            query_clean = (
+                "DELETE FROM member_inviters WHERE guild_id = ? AND user_id = ?"
+            )
             await self.db.execute(query_clean, (guild_id, leaving_user_id))
 
     async def get_stats(self, guild_id: int, user_id: int) -> dict[str, int]:
         """Retrieves a user's invite statistics."""
-        query = "SELECT joins, leaves FROM invite_stats WHERE guild_id = ? AND user_id = ?"
+        query = (
+            "SELECT joins, leaves FROM invite_stats WHERE guild_id = ? AND user_id = ?"
+        )
         row = await self.db.fetchrow(query, (guild_id, user_id))
-        
+
         if row:
             joins, leaves = row["joins"], row["leaves"]
             return {"joins": joins, "leaves": leaves, "net": joins - leaves}

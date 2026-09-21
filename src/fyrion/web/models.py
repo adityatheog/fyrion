@@ -12,6 +12,7 @@ strict on purpose:
 Only fields declared here can ever reach the database, and the pool validates
 the column names again before building SQL.
 """
+
 from __future__ import annotations
 
 from typing import Any
@@ -89,7 +90,9 @@ class GuildSettingsUpdate(BaseModel):
     ticket_support_role_id: int | None = None
 
     economy_enabled: bool | None = None
-    economy_currency_symbol: str | None = Field(default=None, min_length=1, max_length=8)
+    economy_currency_symbol: str | None = Field(
+        default=None, min_length=1, max_length=8
+    )
     economy_daily_amount: int | None = Field(default=None, ge=0, le=1_000_000)
     economy_work_amount: int | None = Field(default=None, ge=0, le=1_000_000)
 

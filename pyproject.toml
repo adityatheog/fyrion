@@ -18,7 +18,10 @@ dependencies = [
 dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.1",
-    "black>=23.7.0",
+    # Pinned exactly: black's formatting rules change between releases, so an
+    # unpinned floor lets CI float to a newer black that reformats the tree and
+    # fails `black --check`. Bump this deliberately alongside a reformat commit.
+    "black==26.5.1",
     "flake8>=6.1.0",
     "mypy>=1.5.0"
 ]
@@ -37,6 +40,13 @@ web = [
     "jinja2>=3.1.4",
     "itsdangerous>=2.2.0"
 ]
+
+[tool.black]
+# Pin the target to the supported interpreter range (requires-python >= 3.10) so
+# formatting is deterministic across the CI matrix and does not drift with the
+# running interpreter. Without this, black auto-targets the newest grammar it
+# knows and warns that older Pythons "cannot parse code formatted for 3.15".
+target-version = ["py310", "py311", "py312"]
 
 [tool.mypy]
 # Shared type-checking settings so a bare local `mypy src dashboard` and CI

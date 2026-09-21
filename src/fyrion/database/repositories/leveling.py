@@ -26,6 +26,7 @@ Concurrency notes:
 * The ``/rep`` cooldown is enforced by a conditional ``UPDATE`` rather than a
   read-then-write, so two simultaneous invocations cannot both pass the check.
 """
+
 from __future__ import annotations
 
 import logging
@@ -228,9 +229,7 @@ class LevelingRepository:
     async def set_level(self, guild_id: int, user_id: int, level: int) -> None:
         await self.db.set_level(int(guild_id), int(user_id), max(0, int(level)))
 
-    async def leaderboard(
-        self, guild_id: int, limit: int = 10
-    ) -> list[dict[str, Any]]:
+    async def leaderboard(self, guild_id: int, limit: int = 10) -> list[dict[str, Any]]:
         return await self.db.leveling_leaderboard(int(guild_id), max(1, int(limit)))
 
     async def tracked_members(self, guild_id: int) -> int:
@@ -272,9 +271,7 @@ class LevelingRepository:
     async def count_rewards(self, guild_id: int) -> int:
         return await self.db.count("level_rewards", {"guild_id": int(guild_id)})
 
-    async def rewards_up_to(
-        self, guild_id: int, level: int
-    ) -> list[dict[str, Any]]:
+    async def rewards_up_to(self, guild_id: int, level: int) -> list[dict[str, Any]]:
         """Returns every reward a member at ``level`` has earned, lowest first."""
         return await self.db.get_level_rewards(
             int(guild_id), up_to_level=max(0, int(level))

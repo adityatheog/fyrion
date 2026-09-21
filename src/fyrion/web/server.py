@@ -9,6 +9,7 @@ the same SQLite pool.
 Signal handling is disabled here on purpose: :mod:`fyrion.runtime` installs the
 process-wide handlers, and letting uvicorn install its own would race with them.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -97,7 +98,9 @@ class DashboardServer:
             self._server.should_exit = True
             return
 
-        log.info("Stopping the dashboard (graceful timeout %ds).", GRACEFUL_TIMEOUT_SECONDS)
+        log.info(
+            "Stopping the dashboard (graceful timeout %ds).", GRACEFUL_TIMEOUT_SECONDS
+        )
         self._server.should_exit = True
 
         # Wait for the serve() task to observe should_exit; force the exit if it

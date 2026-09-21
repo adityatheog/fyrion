@@ -18,6 +18,7 @@ permission checks they apply.
 Every reply here is ephemeral: a failed ticket attempt is the member's business,
 not the channel's.
 """
+
 from __future__ import annotations
 
 import logging
@@ -111,7 +112,9 @@ class TicketControlView(View):
 
         claimed_by = ticket.get("claimed_by")
         if claimed_by and int(claimed_by) == member.id:
-            await _reply(interaction, "\u2139\ufe0f You have already claimed this ticket.")
+            await _reply(
+                interaction, "\u2139\ufe0f You have already claimed this ticket."
+            )
             return
 
         if not await repo.claim_ticket(interaction.channel_id or 0, member.id):
@@ -169,9 +172,7 @@ class TicketControlView(View):
 
         # The member who opened the ticket may close their own; everyone else
         # needs to be staff.
-        if not (
-            service.is_owner(ticket, member) or service.is_support(member, config)
-        ):
+        if not (service.is_owner(ticket, member) or service.is_support(member, config)):
             await _reply(
                 interaction,
                 "\U0001f6ab Only the member who opened this ticket or a staff "
@@ -197,13 +198,12 @@ class TicketControlView(View):
 
         if not result.closed:
             await _reply(
-                interaction, f"\u274c {result.error or 'That ticket could not be closed.'}"
+                interaction,
+                f"\u274c {result.error or 'That ticket could not be closed.'}",
             )
             return
 
-        lines = [
-            "\u2705 Ticket closed. The channel will be deleted in a few seconds."
-        ]
+        lines = ["\u2705 Ticket closed. The channel will be deleted in a few seconds."]
         if result.log_url:
             lines.append(f"Transcript archived: {result.log_url}")
         lines.extend(f"\u26a0\ufe0f {warning}" for warning in result.warnings)

@@ -36,6 +36,7 @@ reply disables mention parsing. The single exception is the winner
 announcement, which is allowed to mention exactly the drawn winners and nothing
 else — never a role and never ``@everyone``.
 """
+
 from __future__ import annotations
 
 import json
@@ -332,9 +333,7 @@ def giveaway_embed(
     else:
         moment = ended_at or ends_at
         if moment is not None:
-            description.append(
-                f"Ended {discord.utils.format_dt(moment, style='R')}"
-            )
+            description.append(f"Ended {discord.utils.format_dt(moment, style='R')}")
         if winners:
             description.append(
                 "Winner(s): " + ", ".join(f"<@{user_id}>" for user_id in winners)
@@ -365,9 +364,7 @@ def giveaway_embed(
         )
 
     giveaway_id = row.get("giveaway_id")
-    footer = (
-        f"Giveaway #{int(giveaway_id)}" if giveaway_id else "Giveaway"
-    )
+    footer = f"Giveaway #{int(giveaway_id)}" if giveaway_id else "Giveaway"
     if status == "active":
         footer += " \u2022 one entry per member"
     embed.set_footer(text=footer)
@@ -433,7 +430,9 @@ class GiveawayRepository:
     async def get_by_message(self, message_id: int) -> dict[str, Any] | None:
         return await self.db.fetch_one("giveaways", {"message_id": int(message_id)})
 
-    async def list_active(self, *, limit: int = MAX_TRACKED_GIVEAWAYS) -> list[dict[str, Any]]:
+    async def list_active(
+        self, *, limit: int = MAX_TRACKED_GIVEAWAYS
+    ) -> list[dict[str, Any]]:
         return await self.db.fetch_many(
             "giveaways",
             {"status": "active"},
@@ -732,7 +731,8 @@ class GiveawayView(discord.ui.View):
         except Exception:
             log.exception("Could not record a giveaway entry for %s.", member.id)
             await _reply(
-                interaction, "\u274c Your entry could not be recorded. Please try again."
+                interaction,
+                "\u274c Your entry could not be recorded. Please try again.",
             )
             return
 
@@ -966,9 +966,7 @@ class Giveaways(commands.Cog):
             await message.edit(embed=embed, view=GiveawayView())
         except discord.NotFound:
             # The panel is gone, so nobody could ever enter or see the result.
-            log.info(
-                "Giveaway %s lost its message; marking it cancelled.", giveaway_id
-            )
+            log.info("Giveaway %s lost its message; marking it cancelled.", giveaway_id)
             try:
                 await self.repo.cancel(giveaway_id)
             except Exception:
@@ -981,9 +979,7 @@ class Giveaways(commands.Cog):
         except discord.HTTPException as exc:
             log.debug("Could not refresh giveaway %s: %s", giveaway_id, exc)
 
-    def _partial_message(
-        self, row: Mapping[str, Any]
-    ) -> discord.PartialMessage | None:
+    def _partial_message(self, row: Mapping[str, Any]) -> discord.PartialMessage | None:
         """Returns a partial message for the giveaway panel.
 
         A partial message can be edited without fetching it first, which keeps
@@ -1017,7 +1013,9 @@ class Giveaways(commands.Cog):
         except (discord.NotFound, discord.Forbidden):
             return None
         except discord.HTTPException as exc:
-            log.debug("Could not fetch member %s in guild %s: %s", user_id, guild.id, exc)
+            log.debug(
+                "Could not fetch member %s in guild %s: %s", user_id, guild.id, exc
+            )
             return None
 
     async def _draw(
@@ -1329,7 +1327,9 @@ class Giveaways(commands.Cog):
         duration: app_commands.Range[str, 1, 32],
         winners: app_commands.Range[int, 1, MAX_WINNERS] = 1,
         channel: Optional[discord.TextChannel] = None,
-        description: Optional[app_commands.Range[str, 1, MAX_DESCRIPTION_LENGTH]] = None,
+        description: Optional[
+            app_commands.Range[str, 1, MAX_DESCRIPTION_LENGTH]
+        ] = None,
         required_role: Optional[discord.Role] = None,
         required_level: Optional[
             app_commands.Range[int, 1, MAX_LEVEL_REQUIREMENT]
@@ -1435,7 +1435,8 @@ class Giveaways(commands.Cog):
             )
         except discord.Forbidden:
             await self._reject(
-                interaction, f"Discord refused to post the giveaway in {target.mention}."
+                interaction,
+                f"Discord refused to post the giveaway in {target.mention}.",
             )
             return
         except discord.HTTPException as exc:
@@ -1495,9 +1496,7 @@ class Giveaways(commands.Cog):
             f"\u2022 runs for **{format_delta(seconds)}**",
         ]
         if ends_at is not None:
-            lines.append(
-                f"Ends {discord.utils.format_dt(ends_at, style='F')}."
-            )
+            lines.append(f"Ends {discord.utils.format_dt(ends_at, style='F')}.")
         if required_role is not None:
             lines.append(f"Only members with {required_role.mention} may enter.")
         if required_level:
@@ -1656,14 +1655,11 @@ class Giveaways(commands.Cog):
         if status == "active":
             await self._reject(
                 interaction,
-                "That giveaway is still running. End it with `/giveaway-end` "
-                "first.",
+                "That giveaway is still running. End it with `/giveaway-end` " "first.",
             )
             return
         if status != "ended":
-            await self._reject(
-                interaction, "A cancelled giveaway cannot be rerolled."
-            )
+            await self._reject(interaction, "A cancelled giveaway cannot be rerolled.")
             return
 
         giveaway_id = int(row["giveaway_id"])
@@ -1800,8 +1796,7 @@ class Giveaways(commands.Cog):
                 ends_at = parse_iso(row.get("ends_at"))
                 if ends_at is not None:
                     detail += (
-                        " \u2022 ends "
-                        f"{discord.utils.format_dt(ends_at, style='R')}"
+                        " \u2022 ends " f"{discord.utils.format_dt(ends_at, style='R')}"
                     )
             else:
                 winners = winner_ids(row)

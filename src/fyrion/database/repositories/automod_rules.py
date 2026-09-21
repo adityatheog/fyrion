@@ -45,6 +45,7 @@ Security
 Every value is bound as a SQL parameter and every column name is validated
 against the schema allow-list by the pool before any statement is built.
 """
+
 from __future__ import annotations
 
 import json
@@ -280,13 +281,9 @@ class AutoModRuleRepository:
         where: dict[str, Any] = {"guild_id": int(guild_id)}
         if enabled_only:
             where["enabled"] = 1
-        return await self.db.fetch_many(
-            "automod_rules", where, order_by="rule_id ASC"
-        )
+        return await self.db.fetch_many("automod_rules", where, order_by="rule_id ASC")
 
-    async def get_rule(
-        self, guild_id: int, rule_type: str
-    ) -> dict[str, Any] | None:
+    async def get_rule(self, guild_id: int, rule_type: str) -> dict[str, Any] | None:
         self._validate_type(rule_type)
         return await self.db.fetch_one(
             "automod_rules", {"guild_id": int(guild_id), "name": rule_type}

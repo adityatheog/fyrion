@@ -10,6 +10,7 @@ message instead of a stack trace from an unrelated module.
 Secrets are never logged. :meth:`Config.summary` returns a redacted view that is
 safe to write to the log on startup.
 """
+
 from __future__ import annotations
 
 import os
@@ -158,7 +159,9 @@ class Config:
     # ------------------------------------------------------------------
     # Core
     # ------------------------------------------------------------------
-    ENVIRONMENT: Final[str] = (_raw("ENVIRONMENT", "development") or "development").lower()
+    ENVIRONMENT: Final[str] = (
+        _raw("ENVIRONMENT", "development") or "development"
+    ).lower()
     DISCORD_TOKEN: Final[str | None] = _raw("DISCORD_TOKEN")
 
     SHARD_COUNT: Final[int | None] = _as_optional_int("SHARD_COUNT", minimum=1)
@@ -193,7 +196,9 @@ class Config:
     LOG_MAX_BYTES: Final[int] = _as_int(
         "LOG_MAX_BYTES", 5 * 1024 * 1024, minimum=64 * 1024
     )
-    LOG_BACKUP_COUNT: Final[int] = _as_int("LOG_BACKUP_COUNT", 5, minimum=0, maximum=100)
+    LOG_BACKUP_COUNT: Final[int] = _as_int(
+        "LOG_BACKUP_COUNT", 5, minimum=0, maximum=100
+    )
     DISCORD_LOG_LEVEL: Final[str] = (
         _raw("DISCORD_LOG_LEVEL", "INFO") or "INFO"
     ).upper()
@@ -215,8 +220,7 @@ class Config:
         or f"http://127.0.0.1:{DASHBOARD_PORT}"
     ).rstrip("/")
     DASHBOARD_OAUTH_CALLBACK_PATH: Final[str] = (
-        _raw("DASHBOARD_OAUTH_CALLBACK_PATH", "/auth/callback")
-        or "/auth/callback"
+        _raw("DASHBOARD_OAUTH_CALLBACK_PATH", "/auth/callback") or "/auth/callback"
     )
     DASHBOARD_SECRET_KEY: Final[str | None] = _raw("DASHBOARD_SECRET_KEY")
     DISCORD_CLIENT_ID: Final[str | None] = _raw("DISCORD_CLIENT_ID")
@@ -276,7 +280,9 @@ class Config:
 
         token = cls.DISCORD_TOKEN
         if not token:
-            issues.append("DISCORD_TOKEN is missing. Set it in the environment or .env.")
+            issues.append(
+                "DISCORD_TOKEN is missing. Set it in the environment or .env."
+            )
         else:
             if token.lower() in PLACEHOLDER_SECRETS:
                 issues.append(
@@ -308,9 +314,7 @@ class Config:
             issues.extend(cls._validate_dashboard())
 
         if issues:
-            raise ConfigurationError(
-                "\n".join(f"  - {issue}" for issue in issues)
-            )
+            raise ConfigurationError("\n".join(f"  - {issue}" for issue in issues))
 
     @classmethod
     def _validate_dashboard(cls) -> list[str]:
@@ -360,9 +364,7 @@ class Config:
             )
 
         if cls.is_production() and not cls.DASHBOARD_COOKIE_SECURE:
-            issues.append(
-                "DASHBOARD_COOKIE_SECURE cannot be disabled in production."
-            )
+            issues.append("DASHBOARD_COOKIE_SECURE cannot be disabled in production.")
 
         if "*" in cls.DASHBOARD_ALLOWED_ORIGINS:
             issues.append(

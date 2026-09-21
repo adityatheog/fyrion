@@ -10,6 +10,7 @@ login but before the gateway connection is used: open the database pool,
 register persistent views, load every cog found under ``fyrion.cogs``, then
 synchronize the application command tree.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -49,13 +50,13 @@ def build_intents() -> discord.Intents:
     """
     intents = discord.Intents.none()
 
-    intents.guilds = True           # guild, channel and role cache: needed everywhere
-    intents.members = True          # PRIVILEGED: autorole, welcome, invite tracking
+    intents.guilds = True  # guild, channel and role cache: needed everywhere
+    intents.members = True  # PRIVILEGED: autorole, welcome, invite tracking
     intents.message_content = True  # PRIVILEGED: AutoMod content scanning
-    intents.guild_messages = True   # on_message delivery inside guilds
+    intents.guild_messages = True  # on_message delivery inside guilds
     intents.guild_reactions = True  # reaction roles
-    intents.invites = True          # invite create/delete events for cache deltas
-    intents.moderation = True       # ban/unban events for audit logging
+    intents.invites = True  # invite create/delete events for cache deltas
+    intents.moderation = True  # ban/unban events for audit logging
 
     return intents
 

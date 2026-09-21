@@ -6,6 +6,7 @@ servers. Row counts are obtained with an explicit ``COUNT(*)`` rather than
 ``cursor.rowcount`` so the repository works with either the single-connection
 manager or the pooled implementation.
 """
+
 from __future__ import annotations
 
 from typing import Any

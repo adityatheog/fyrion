@@ -13,6 +13,7 @@ member in a server) go through this view first. Two properties matter:
 The view is intentionally *not* persistent: an abandoned confirmation must
 expire rather than survive a restart and be actioned later.
 """
+
 from __future__ import annotations
 
 import discord

@@ -14,6 +14,7 @@ The public surface is kept stable so existing callers need no changes:
 * :meth:`update_config` accepts those same legacy keys and validates them, so
   an unknown or injected key still raises ``ValueError`` before any SQL runs.
 """
+
 from typing import Any
 
 # Legacy configuration key -> ``guild_settings`` column.

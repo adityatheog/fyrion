@@ -28,6 +28,7 @@ Safety properties worth stating explicitly:
 * Dice expressions are parsed with a bounded regex and hard caps on dice count,
   side count and term count, so no input can turn into unbounded work.
 """
+
 from __future__ import annotations
 
 import logging
@@ -152,9 +153,15 @@ FALLBACK_QUOTES: Final[tuple[tuple[str, str], ...]] = (
     ("Whether you think you can or you cannot, you are right.", "Henry Ford"),
     ("It always seems impossible until it is done.", "Nelson Mandela"),
     ("Fall seven times, stand up eight.", "Japanese proverb"),
-    ("The best time to plant a tree was twenty years ago. The second best time is now.", "Chinese proverb"),
+    (
+        "The best time to plant a tree was twenty years ago. The second best time is now.",
+        "Chinese proverb",
+    ),
     ("What we do now echoes in eternity.", "Marcus Aurelius"),
-    ("Perfection is achieved when there is nothing left to take away.", "Antoine de Saint-Exupery"),
+    (
+        "Perfection is achieved when there is nothing left to take away.",
+        "Antoine de Saint-Exupery",
+    ),
 )
 
 COIN_FACES: Final[tuple[str, str]] = ("Heads", "Tails")
@@ -183,7 +190,9 @@ def sanitize_inline(text: Any, limit: int = 200) -> str:
     return discord.utils.escape_markdown(collapsed.replace("@", "@\u200b"))
 
 
-def sanitize_block(text: Any, limit: int = FIELD_VALUE_LIMIT, max_lines: int = 12) -> str:
+def sanitize_block(
+    text: Any, limit: int = FIELD_VALUE_LIMIT, max_lines: int = 12
+) -> str:
     """Sanitizes a multi-line body while keeping its paragraph structure."""
     raw = str(text or "").replace("\r\n", "\n").replace("\r", "\n")
     lines = [" ".join(line.split()) for line in raw.split("\n")]
@@ -202,8 +211,7 @@ def strip_urban_brackets(text: Any) -> str:
     return re.sub(r"[\[\]]", "", str(text or ""))
 
 
-def safe_url(value: Any, *allowed_hosts: str) -> str | None\
-        :
+def safe_url(value: Any, *allowed_hosts: str) -> str | None:
     """Returns an https URL only when its host matches an allow-listed domain."""
     if not value:
         return None
@@ -303,9 +311,7 @@ def roll_expression(expression: str, rng: random.Random) -> DiceResult:
         if flat is not None:
             value = int(flat)
             if value > MAX_FLAT_MODIFIER:
-                raise ValueError(
-                    f"Modifiers are limited to {MAX_FLAT_MODIFIER:,}."
-                )
+                raise ValueError(f"Modifiers are limited to {MAX_FLAT_MODIFIER:,}.")
             total += sign * value
             breakdown.append(f"{prefix} {value}")
             continue
@@ -320,9 +326,7 @@ def roll_expression(expression: str, rng: random.Random) -> DiceResult:
                 f"Dice must have between {MIN_DIE_SIDES} and {MAX_DIE_SIDES} sides."
             )
         if dice_used + count > MAX_DICE_PER_ROLL:
-            raise ValueError(
-                f"You can roll at most {MAX_DICE_PER_ROLL} dice at once."
-            )
+            raise ValueError(f"You can roll at most {MAX_DICE_PER_ROLL} dice at once.")
 
         rolls = [rng.randint(1, sides) for _ in range(count)]
         dice_used += count
@@ -359,7 +363,7 @@ class Fun(commands.Cog):
             log.warning(
                 "httpx is not installed, so /meme, /quote and /urban will report "
                 "that they are unavailable. Install it with: "
-                'pip install -r requirements.txt'
+                "pip install -r requirements.txt"
             )
             return
 
@@ -543,9 +547,9 @@ class Fun(commands.Cog):
         if len(flips) == 1:
             embed.description = f"It landed on **{flips[0]}**."
         else:
-            embed.description = "\u2192 " + ", ".join(
-                f"**{face}**" for face in flips
-            )[:4000]
+            embed.description = (
+                "\u2192 " + ", ".join(f"**{face}**" for face in flips)[:4000]
+            )
             embed.add_field(name="Heads", value=str(heads), inline=True)
             embed.add_field(name="Tails", value=str(tails), inline=True)
             if heads == tails:
@@ -688,9 +692,7 @@ class Fun(commands.Cog):
             try:
                 data = await self._get_json(url, host=MEME_API_HOST)
             except ServiceError as exc:
-                await self._send(
-                    interaction, content=f"\u274c {exc}", ephemeral=True
-                )
+                await self._send(interaction, content=f"\u274c {exc}", ephemeral=True)
                 return
 
             if not isinstance(data, dict):
@@ -764,7 +766,9 @@ class Fun(commands.Cog):
         if isinstance(ups, int):
             embed.add_field(name="Upvotes", value=f"{ups:,}", inline=True)
 
-        footer = f"r/{sanitize_inline(payload.get('subreddit'), 40)} \u2022 via meme-api.com"
+        footer = (
+            f"r/{sanitize_inline(payload.get('subreddit'), 40)} \u2022 via meme-api.com"
+        )
         if skipped_nsfw:
             footer += f" \u2022 skipped {skipped_nsfw} NSFW result(s)"
         embed.set_footer(text=footer[:2048])
@@ -825,7 +829,11 @@ class Fun(commands.Cog):
             except (TypeError, ValueError):
                 return 0
 
-        best = max((item for item in entries if isinstance(item, dict)), key=score, default=None)
+        best = max(
+            (item for item in entries if isinstance(item, dict)),
+            key=score,
+            default=None,
+        )
         if best is None:
             await self._send(
                 interaction,
@@ -853,7 +861,9 @@ class Fun(commands.Cog):
             down = int(best.get("thumbs_down") or 0)
         except (TypeError, ValueError):
             up, down = 0, 0
-        embed.add_field(name="Votes", value=f"\U0001f44d {up:,} / \U0001f44e {down:,}", inline=True)
+        embed.add_field(
+            name="Votes", value=f"\U0001f44d {up:,} / \U0001f44e {down:,}", inline=True
+        )
 
         author = best.get("author")
         if author:

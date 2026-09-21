@@ -28,6 +28,7 @@ channel name and topic edits to two per ten minutes, which a busy ticket queue
 would exhaust. The ticket number is carried in the topic set at creation time
 and in the greeting embed instead.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -359,9 +360,7 @@ async def open_ticket(
     )
     if missing:
         names = ", ".join(f"`{name}`" for name in missing)
-        return TicketOpenResult(
-            error=f"I am missing {names} in the ticket category."
-        )
+        return TicketOpenResult(error=f"I am missing {names} in the ticket category.")
     if not me.guild_permissions.manage_roles:
         # Overwrites cannot be written without it, so the channel would be
         # created world-readable.
@@ -444,9 +443,9 @@ async def open_ticket(
         )
 
     label = str((topic or {}).get("label") or "Support")[:MAX_TOPIC_LABEL]
-    channel_topic = (
-        f"Ticket opened by {member} ({member.id}) \u2022 topic: {label}"
-    )[:TOPIC_LIMIT]
+    channel_topic = (f"Ticket opened by {member} ({member.id}) \u2022 topic: {label}")[
+        :TOPIC_LIMIT
+    ]
 
     try:
         channel = await category.create_text_channel(
@@ -486,9 +485,7 @@ async def open_ticket(
         try:
             await channel.delete(reason="Ticket could not be recorded")
         except discord.HTTPException:
-            log.warning(
-                "Orphaned ticket channel %s could not be removed.", channel.id
-            )
+            log.warning("Orphaned ticket channel %s could not be removed.", channel.id)
         return TicketOpenResult(
             error="Your ticket could not be recorded. Please try again shortly."
         )
@@ -536,7 +533,9 @@ def close_embed(
         color=discord.Color.dark_grey(),
         timestamp=discord.utils.utcnow(),
     )
-    embed.add_field(name="Channel", value=f"#{channel.name} (`{channel.id}`)", inline=False)
+    embed.add_field(
+        name="Channel", value=f"#{channel.name} (`{channel.id}`)", inline=False
+    )
 
     owner_id = ticket.get("user_id")
     if owner_id:
@@ -730,9 +729,7 @@ async def close_ticket(
 
     notice = discord.Embed(
         title="Ticket closed",
-        description=(
-            f"This channel will be deleted in {int(max(1, delay))} seconds."
-        ),
+        description=(f"This channel will be deleted in {int(max(1, delay))} seconds."),
         color=discord.Color.dark_grey(),
     )
     notice.add_field(
@@ -754,9 +751,11 @@ async def close_ticket(
     _schedule_delete(
         channel,
         delay,
-        f"Ticket closed by {closed_by} ({closed_by.id})"
-        if closed_by is not None
-        else "Ticket closed",
+        (
+            f"Ticket closed by {closed_by} ({closed_by.id})"
+            if closed_by is not None
+            else "Ticket closed"
+        ),
     )
 
     return result

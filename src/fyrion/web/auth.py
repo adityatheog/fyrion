@@ -7,6 +7,7 @@ access token is revoked immediately afterwards, and every later authorization
 decision is made from the bot's own guild and member cache. That keeps the
 blast radius of a database compromise limited to opaque session hashes.
 """
+
 from __future__ import annotations
 
 import logging
@@ -112,7 +113,9 @@ async def _fetch_current_user(
             timeout=REQUEST_TIMEOUT,
         ) as response:
             if response.status != 200:
-                log.warning("Could not read the OAuth profile (HTTP %s).", response.status)
+                log.warning(
+                    "Could not read the OAuth profile (HTTP %s).", response.status
+                )
                 raise OAuthError("Discord did not return your profile.")
             profile = await response.json()
     except aiohttp.ClientError as exc:

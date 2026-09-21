@@ -17,6 +17,7 @@ Security posture
 * Writes are validated by a strict pydantic model and by the database layer's
   identifier allow-list, and every value is bound as a SQL parameter.
 """
+
 from __future__ import annotations
 
 import logging
@@ -187,9 +188,7 @@ async def require_session(request: Request) -> dict[str, Any]:
 
     token = request.cookies.get(security.SESSION_COOKIE)
     if not token:
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED, "Authentication required."
-        )
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authentication required.")
 
     pool = _pool(request)
     session = await pool.get_active_session(security.hash_token(token))
@@ -240,9 +239,7 @@ async def _resolve_member(
     except (discord.NotFound, discord.Forbidden):
         return None
     except discord.HTTPException as exc:
-        log.warning(
-            "Could not fetch member %s in guild %s: %s", user_id, guild.id, exc
-        )
+        log.warning("Could not fetch member %s in guild %s: %s", user_id, guild.id, exc)
         return None
 
 
@@ -353,7 +350,9 @@ async def health(request: Request) -> JSONResponse:
     ready = bot.is_ready()
     return JSONResponse(
         {"status": "ok" if ready else "starting", "ready": ready},
-        status_code=status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE,
+        status_code=(
+            status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE
+        ),
     )
 
 
@@ -433,7 +432,7 @@ async def callback(
 
 
 @auth_router.post("/logout")
-async def logout(request:Request) -> JSONResponse:
+async def logout(request: Request) -> JSONResponse:
     """Revokes the current session and clears the cookie."""
     token = request.cookies.get(security.SESSION_COOKIE)
     response = JSONResponse({"status": "signed_out"})
@@ -494,9 +493,7 @@ async def whoami(
             "created_at": session.get("created_at"),
             "expires_at": session.get("expires_at"),
             "scopes": session.get("scopes"),
-            "csrf_token": (
-                security.csrf_token(cookie_token) if cookie_token else None
-            ),
+            "csrf_token": (security.csrf_token(cookie_token) if cookie_token else None),
         },
         "guilds": manageable,
     }
@@ -568,9 +565,7 @@ async def patch_settings(
     """
     values = payload.to_columns()
     if not values:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "No settings were supplied."
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "No settings were supplied.")
 
     guild = context.guild
     for field, value in values.items():

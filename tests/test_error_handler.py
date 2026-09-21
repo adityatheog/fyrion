@@ -5,6 +5,7 @@ Phase 4 collapsed error handling to a single tree: the ``ErrorHandler`` cog is
 now the only thing that assigns ``bot.tree.on_error``. These tests confirm the
 install/restore contract without needing a live gateway connection.
 """
+
 import discord
 import pytest
 from discord.ext import commands

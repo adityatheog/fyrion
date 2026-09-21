@@ -21,6 +21,7 @@ Resolution runs when the emoji is *rendered*, long after configuration, where
 the same unreachable emoji must degrade to a fallback rather than raise on the
 interaction path.
 """
+
 from __future__ import annotations
 
 from typing import NoReturn

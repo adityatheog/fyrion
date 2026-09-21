@@ -4,6 +4,7 @@ A fake bot stands in for ``discord.Client`` so nothing here needs a live
 gateway connection. ``get_emoji`` is the only method the emoji utilities call,
 and it returns whichever ids the fake was told the bot can see.
 """
+
 from __future__ import annotations
 
 import discord

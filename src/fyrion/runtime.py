@@ -21,6 +21,7 @@ Exit codes:
     1  a component failed
     2  the configuration is unusable
 """
+
 from __future__ import annotations
 
 import asyncio

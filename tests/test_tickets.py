@@ -7,6 +7,7 @@ statement a hard SQLite parse error. That broke *every* ticket path, because
 ``get_config`` / ``save_panel`` / ``get_panel`` all call ``ensure_schema`` first.
 These tests pin the DDL down and confirm the panel round-trips and cascades.
 """
+
 import pytest
 
 from fyrion.database.repositories.tickets import TicketRepository

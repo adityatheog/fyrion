@@ -12,6 +12,7 @@ History reads are bounded by :data:`MAX_MESSAGES`. A ticket that outgrew that
 bound is reported as truncated rather than silently clipped, so an operator can
 tell the difference between "short conversation" and "we stopped reading".
 """
+
 from __future__ import annotations
 
 import io
@@ -154,7 +155,9 @@ def build_transcript(
     if reason:
         header.append(f"Close reason  : {_clean(reason)}")
 
-    header.append(f"Messages      : {len(messages)}" + (" (truncated)" if truncated else ""))
+    header.append(
+        f"Messages      : {len(messages)}" + (" (truncated)" if truncated else "")
+    )
     if note:
         header.append(f"Note          : {note}")
     header.append(RULE)
@@ -162,8 +165,7 @@ def build_transcript(
 
     if truncated:
         header.append(
-            f"[Only the first {MAX_MESSAGES} messages of this ticket are "
-            "included.]"
+            f"[Only the first {MAX_MESSAGES} messages of this ticket are " "included.]"
         )
         header.append("")
 

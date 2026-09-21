@@ -33,6 +33,7 @@ User-controlled text (role names, topics, templates) is echoed back with mention
 parsing disabled, so a crafted name can never make Fyrion ping a role or
 ``@everyone``.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -322,9 +323,7 @@ class Admin(FyrionCog, commands.Cog):
             await self._reject(interaction, error)
             return
 
-        await self.db.update_guild_settings(
-            guild.id, audit_log_channel_id=channel.id
-        )
+        await self.db.update_guild_settings(guild.id, audit_log_channel_id=channel.id)
         self._invalidate_audit_cache(guild.id)
 
         await self._audit(
@@ -467,7 +466,9 @@ class Admin(FyrionCog, commands.Cog):
 
         if channel is None:
             await self.db.update_guild_settings(guild.id, goodbye_channel_id=None)
-            await self._audit(guild, member, "Leave messages disabled", "Channel cleared")
+            await self._audit(
+                guild, member, "Leave messages disabled", "Channel cleared"
+            )
             await self._ok(interaction, "Leave messages are now **disabled**.")
             return
 
@@ -904,9 +905,7 @@ class Admin(FyrionCog, commands.Cog):
                 "command again to continue."
             )
 
-        await interaction.edit_original_response(
-            content="\n".join(summary), view=None
-        )
+        await interaction.edit_original_response(content="\n".join(summary), view=None)
         await self._audit(
             guild,
             invoker,
@@ -993,7 +992,11 @@ class Admin(FyrionCog, commands.Cog):
         try:
             role = await guild.create_role(
                 name=cleaned,
-                colour=parsed_color if parsed_color is not None else discord.Color.default(),
+                colour=(
+                    parsed_color
+                    if parsed_color is not None
+                    else discord.Color.default()
+                ),
                 hoist=hoist,
                 mentionable=mentionable,
                 # Deliberately empty: a role created by a bot command must never
@@ -1002,9 +1005,7 @@ class Admin(FyrionCog, commands.Cog):
                 reason=self._audit_reason(invoker, reason),
             )
         except discord.Forbidden:
-            await self._reject(
-                interaction, "Discord refused to create the role."
-            )
+            await self._reject(interaction, "Discord refused to create the role.")
             return
         except discord.HTTPException as exc:
             log.warning("Role creation failed in guild %s: %s", guild.id, exc)
@@ -1879,9 +1880,7 @@ class ReactionRoleEvents(FyrionCog, commands.Cog):
         if me is None:
             return
 
-        reason = f"Reaction role group '{group_key}' is exclusive"[
-            :AUDIT_REASON_LIMIT
-        ]
+        reason = f"Reaction role group '{group_key}' is exclusive"[:AUDIT_REASON_LIMIT]
         message: discord.Message | None = None
 
         for sibling in siblings:

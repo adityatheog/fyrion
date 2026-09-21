@@ -8,6 +8,7 @@ must instead drop the least-recently-used keys and keep recent ones.
 
 Skipped unless the web extra is installed (fyrion.web.app imports FastAPI).
 """
+
 import pytest
 
 pytest.importorskip("fastapi")
@@ -25,6 +26,6 @@ def test_eviction_is_lru_not_a_full_clear():
     assert limiter.allow("k10") is True
 
     keys = set(limiter._hits)
-    assert 0 < len(keys) <= 10          # not cleared to empty
-    assert "k0" not in keys             # the least-recently-used key was dropped
+    assert 0 < len(keys) <= 10  # not cleared to empty
+    assert "k0" not in keys  # the least-recently-used key was dropped
     assert "k9" in keys and "k10" in keys  # recent keys survived

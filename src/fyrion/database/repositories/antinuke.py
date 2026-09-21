@@ -23,6 +23,7 @@ level because each cog builds its own repository instance while all of them talk
 to the same database. This mirrors
 :class:`~fyrion.database.repositories.automod_rules.AutoModRuleRepository`.
 """
+
 from __future__ import annotations
 
 import logging
@@ -111,9 +112,7 @@ class AntiNukeRepository:
 
     async def get_settings(self, guild_id: int) -> dict[str, Any] | None:
         """Returns the guild's settings row, or None when unconfigured."""
-        return await self.db.fetch_one(
-            "antinuke_settings", {"guild_id": int(guild_id)}
-        )
+        return await self.db.fetch_one("antinuke_settings", {"guild_id": int(guild_id)})
 
     async def save_settings(
         self, guild_id: int, values: Mapping[str, Any]
@@ -169,9 +168,7 @@ class AntiNukeRepository:
     async def set_threshold(
         self, guild_id: int, action: str, threshold: int
     ) -> dict[str, Any]:
-        return await self.save_settings(
-            guild_id, {threshold_column(action): threshold}
-        )
+        return await self.save_settings(guild_id, {threshold_column(action): threshold})
 
     async def clear_threshold(self, guild_id: int, action: str) -> dict[str, Any]:
         """Stops watching one action by nulling its threshold column."""
@@ -243,9 +240,7 @@ class AntiNukeRepository:
     @staticmethod
     def _bounded(value: int, low: int, high: int, field: str) -> int:
         if not low <= value <= high:
-            raise ValueError(
-                f"{field} must be between {low} and {high}, got {value}."
-            )
+            raise ValueError(f"{field} must be between {low} and {high}, got {value}.")
         return value
 
 

@@ -11,6 +11,7 @@ Each function returns a user-facing error string when the action must be
 refused, or ``None`` when it is permitted. Returning the reason (rather than a
 bare boolean) keeps the refusal messages consistent across every cog.
 """
+
 from __future__ import annotations
 
 import discord

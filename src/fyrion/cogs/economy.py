@@ -47,6 +47,7 @@ re-check ``Manage Server`` server side. Item names, descriptions and display
 names are operator or member supplied, so every reply disables mention parsing;
 the only exception is a notice that addresses exactly one member.
 """
+
 from __future__ import annotations
 
 import json
@@ -383,9 +384,7 @@ def dump_inventory(items: Sequence[Mapping[str, Any]]) -> str:
         {
             "key": str(item.get("key")),
             "name": str(item.get("name") or item.get("key"))[:MAX_ITEM_NAME],
-            "quantity": max(
-                1, min(MAX_ITEM_QUANTITY, as_int(item.get("quantity"), 1))
-            ),
+            "quantity": max(1, min(MAX_ITEM_QUANTITY, as_int(item.get("quantity"), 1))),
             "acquired_at": item.get("acquired_at"),
         }
         for item in list(items)[:MAX_INVENTORY_ENTRIES]
@@ -463,7 +462,9 @@ class Hand:
         return " ".join(parts)
 
 
-def build_deck(rng: random.Random, decks: int = BLACKJACK_DECKS) -> list[tuple[str, str]]:
+def build_deck(
+    rng: random.Random, decks: int = BLACKJACK_DECKS
+) -> list[tuple[str, str]]:
     deck = [
         (rank, suit)
         for _ in range(max(1, decks))
@@ -606,7 +607,9 @@ class EconomyRepository:
 
     async def debit(self, guild_id: int, user_id: int, amount: int) -> int:
         """Removes from a wallet, raising when the balance is insufficient."""
-        return await self.db.adjust_balance(int(guild_id), int(user_id), -abs(int(amount)))
+        return await self.db.adjust_balance(
+            int(guild_id), int(user_id), -abs(int(amount))
+        )
 
     async def take_up_to(self, guild_id: int, user_id: int, amount: int) -> int:
         """Debits at most ``amount``, returning what was actually taken.
@@ -1077,7 +1080,9 @@ class BlackjackView(discord.ui.View):
             view=self,
         )
 
-    @discord.ui.button(label="Stand", style=discord.ButtonStyle.secondary, emoji="\u270b")
+    @discord.ui.button(
+        label="Stand", style=discord.ButtonStyle.secondary, emoji="\u270b"
+    )
     async def stand_button(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ) -> None:
@@ -1353,9 +1358,7 @@ class Economy(FyrionCog, commands.Cog):
             value=format_money(net_worth, settings.symbol),
             inline=True,
         )
-        embed.add_field(
-            name="Rank", value=f"#{rank} of {max(tracked, 1)}", inline=True
-        )
+        embed.add_field(name="Rank", value=f"#{rank} of {max(tracked, 1)}", inline=True)
         embed.add_field(
             name="Daily streak",
             value=f"{as_int(account.get('daily_streak'))} day(s)",
@@ -1691,7 +1694,6 @@ class Economy(FyrionCog, commands.Cog):
 
         await interaction.response.defer()
 
-
         try:
             result = await self.repo.claim_action(
                 guild.id, member.id, "crime", CRIME_COOLDOWN_SECONDS
@@ -2021,9 +2023,7 @@ class Economy(FyrionCog, commands.Cog):
         weights = [entry[1] for entry in SLOT_REELS]
         multipliers = {entry[0]: entry[2] for entry in SLOT_REELS}
 
-        reels = [
-            self._rng.choices(symbols, weights=weights, k=1)[0] for _ in range(3)
-        ]
+        reels = [self._rng.choices(symbols, weights=weights, k=1)[0] for _ in range(3)]
 
         if reels[0] == reels[1] == reels[2]:
             multiplier = float(multipliers[reels[0]])
@@ -2049,9 +2049,7 @@ class Economy(FyrionCog, commands.Cog):
             color=(
                 discord.Color.green()
                 if net > 0
-                else discord.Color.orange()
-                if net == 0
-                else discord.Color.red()
+                else discord.Color.orange() if net == 0 else discord.Color.red()
             ),
             timestamp=discord.utils.utcnow(),
         )
@@ -2072,9 +2070,7 @@ class Economy(FyrionCog, commands.Cog):
         embed.add_field(
             name="Payouts",
             value=truncate(
-                " \u2022 ".join(
-                    f"{symbol} {mult}x" for symbol, _, mult in SLOT_REELS
-                )
+                " \u2022 ".join(f"{symbol} {mult}x" for symbol, _, mult in SLOT_REELS)
                 + f" \u2022 any pair {SLOT_PAIR_MULTIPLIER:g}x"
             ),
             inline=False,
@@ -2113,9 +2109,7 @@ class Economy(FyrionCog, commands.Cog):
             color=color,
             timestamp=discord.utils.utcnow(),
         )
-        embed.set_author(
-            name=player.display_name, icon_url=player.display_avatar.url
-        )
+        embed.set_author(name=player.display_name, icon_url=player.display_avatar.url)
 
         player_total = game.player.total
         embed.add_field(
@@ -2175,9 +2169,8 @@ class Economy(FyrionCog, commands.Cog):
                 )
             )
         else:
-            embed.description = (
-                "Hit to draw, stand to stop"
-                + (", or double down to double your stake." if game.can_double else ".")
+            embed.description = "Hit to draw, stand to stop" + (
+                ", or double down to double your stake." if game.can_double else "."
             )
             embed.set_footer(
                 text=(
@@ -2226,9 +2219,7 @@ class Economy(FyrionCog, commands.Cog):
                     )
             if balance is None:
                 try:
-                    account = await self.repo.get_account(
-                        game.guild_id, game.user_id
-                    )
+                    account = await self.repo.get_account(game.guild_id, game.user_id)
                     balance = as_int(account.get("balance"))
                 except Exception:
                     log.exception("Could not read a wallet after blackjack.")
@@ -2285,9 +2276,7 @@ class Economy(FyrionCog, commands.Cog):
             await interaction.response.defer()
 
             stake = int(amount)
-            if not await self._take_stake(
-                interaction, guild, member, settings, stake
-            ):
+            if not await self._take_stake(interaction, guild, member, settings, stake):
                 released = True
                 self._in_play.discard(key)
                 return
@@ -2407,7 +2396,9 @@ class Economy(FyrionCog, commands.Cog):
             description=truncate("\n".join(lines), 4000),
             color=discord.Color.gold(),
         )
-        embed.set_footer(text=f"{tracked} account(s) tracked \u2022 ranked by net worth")
+        embed.set_footer(
+            text=f"{tracked} account(s) tracked \u2022 ranked by net worth"
+        )
         if guild.icon is not None:
             embed.set_thumbnail(url=guild.icon.url)
 
@@ -2439,8 +2430,7 @@ class Economy(FyrionCog, commands.Cog):
         if not items:
             await self._note(
                 interaction,
-                "The shop is empty. An administrator can stock it with "
-                "`/shop-add`.",
+                "The shop is empty. An administrator can stock it with " "`/shop-add`.",
             )
             return
 
@@ -2474,7 +2464,9 @@ class Economy(FyrionCog, commands.Cog):
             if role_id:
                 role = guild.get_role(as_int(role_id))
                 details.append(
-                    f"grants {role.mention}" if role is not None else "grants a deleted role"
+                    f"grants {role.mention}"
+                    if role is not None
+                    else "grants a deleted role"
                 )
 
             body = " \u2022 ".join(details)
@@ -2501,9 +2493,7 @@ class Economy(FyrionCog, commands.Cog):
 
     @app_commands.command(name="buy", description="Buy an item from the shop.")
     @app_commands.guild_only()
-    @app_commands.describe(
-        item="The item to buy", quantity="How many to buy (1-10)"
-    )
+    @app_commands.describe(item="The item to buy", quantity="How many to buy (1-10)")
     async def buy_cmd(
         self,
         interaction: discord.Interaction,
@@ -2651,9 +2641,7 @@ class Economy(FyrionCog, commands.Cog):
                 role_note = f"\nYou already had {role.mention}."
             else:
                 try:
-                    await member.add_roles(
-                        role, reason=f"Purchased shop item {key}"
-                    )
+                    await member.add_roles(role, reason=f"Purchased shop item {key}")
                     role_note = f"\n{role.mention} has been added to your roles."
                 except (discord.Forbidden, discord.HTTPException) as exc:
                     log.warning(
@@ -2709,8 +2697,7 @@ class Economy(FyrionCog, commands.Cog):
             key = str(item.get("item_key"))
             name = str(item.get("name") or key)
             label = (
-                f"{name} \u2014 "
-                f"{format_money(item.get('price'), settings.symbol)}"
+                f"{name} \u2014 " f"{format_money(item.get('price'), settings.symbol)}"
             )[:100]
             if needle and needle not in label.lower() and needle not in key:
                 continue
@@ -2723,9 +2710,7 @@ class Economy(FyrionCog, commands.Cog):
     # /inventory
     # ------------------------------------------------------------------
 
-    @app_commands.command(
-        name="inventory", description="View the items a member owns."
-    )
+    @app_commands.command(name="inventory", description="View the items a member owns.")
     @app_commands.guild_only()
     @app_commands.describe(member="The member to inspect (defaults to you)")
     async def inventory_cmd(
@@ -2777,9 +2762,8 @@ class Economy(FyrionCog, commands.Cog):
 
             record = catalogue.get(key)
             if record is not None:
-                detail += (
-                    " \u2022 worth "
-                    + format_money(as_int(record.get("price")) * quantity, settings.symbol)
+                detail += " \u2022 worth " + format_money(
+                    as_int(record.get("price")) * quantity, settings.symbol
                 )
                 if not record.get("enabled"):
                     detail += " \u2022 no longer sold"
@@ -2788,9 +2772,7 @@ class Economy(FyrionCog, commands.Cog):
 
             acquired = parse_iso(item.get("acquired_at"))
             if acquired is not None:
-                detail += (
-                    " \u2022 " + discord.utils.format_dt(acquired, style="R")
-                )
+                detail += " \u2022 " + discord.utils.format_dt(acquired, style="R")
             lines.append(detail)
 
         embed = discord.Embed(
@@ -2841,9 +2823,7 @@ class Economy(FyrionCog, commands.Cog):
         if currency_symbol is not None:
             symbol = currency_symbol.strip()
             if not symbol:
-                await self._reject(
-                    interaction, "The currency symbol cannot be blank."
-                )
+                await self._reject(interaction, "The currency symbol cannot be blank.")
                 return
             if any(char.isspace() for char in symbol):
                 await self._reject(
@@ -2949,10 +2929,12 @@ class Economy(FyrionCog, commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
-
         try:
             existing = await self.repo.get_item(guild.id, item_key)
-            if existing is None and await self.repo.count_items(guild.id) >= MAX_SHOP_ITEMS:
+            if (
+                existing is None
+                and await self.repo.count_items(guild.id) >= MAX_SHOP_ITEMS
+            ):
                 await self._reject(
                     interaction,
                     f"The shop already holds {MAX_SHOP_ITEMS} items, which is the "
@@ -3055,9 +3037,7 @@ class Economy(FyrionCog, commands.Cog):
             )
             return
 
-        await self._audit(
-            guild, member, "Shop item removed", f"Key: {item_key}"
-        )
+        await self._audit(guild, member, "Shop item removed", f"Key: {item_key}")
         await self._respond(
             interaction,
             f"\u2705 Removed `{sanitize(item_key, MAX_ITEM_KEY)}` from the shop. "

@@ -18,6 +18,7 @@ Autorole assignment is validated before the API call: Discord refuses to assign
 a role at or above the bot's highest role, so that case is logged as a
 configuration problem rather than retried on every join.
 """
+
 from __future__ import annotations
 
 import logging
@@ -153,9 +154,7 @@ class WelcomeEvents(commands.Cog):
 
         role = guild.get_role(int(role_id))
         if role is None:
-            log.info(
-                "Autorole %s in guild %s no longer exists.", role_id, guild.id
-            )
+            log.info("Autorole %s in guild %s no longer exists.", role_id, guild.id)
             return
 
         if role.is_default() or role.managed:
@@ -341,9 +340,7 @@ class ServerConfig(commands.GroupCog, name="config"):
     )
     @app_commands.guild_only()
     @app_commands.default_permissions(manage_guild=True)
-    @app_commands.describe(
-        role="The role to give new members (leave blank to disable)"
-    )
+    @app_commands.describe(role="The role to give new members (leave blank to disable)")
     async def config_autorole_cmd(
         self,
         interaction: discord.Interaction,

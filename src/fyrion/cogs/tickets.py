@@ -30,6 +30,7 @@ Every reply that echoes operator text (topic labels, close reasons, display
 names) disables mention parsing, so crafted input cannot make Fyrion ping a role
 or ``@everyone``.
 """
+
 from __future__ import annotations
 
 import logging
@@ -153,9 +154,16 @@ class Tickets(commands.Cog):
 
     async def _ticket_context(
         self, interaction: discord.Interaction, *, require_staff: bool = True
-    ) -> tuple[
-        discord.Guild, discord.Member, discord.TextChannel, dict[str, Any], dict[str, Any]
-    ] | None:
+    ) -> (
+        tuple[
+            discord.Guild,
+            discord.Member,
+            discord.TextChannel,
+            dict[str, Any],
+            dict[str, Any],
+        ]
+        | None
+    ):
         """Resolves the ticket the command was invoked in, and authorizes it.
 
         Returns ``(guild, member, channel, ticket, config)`` when the command may
@@ -195,9 +203,7 @@ class Tickets(commands.Cog):
             return None
 
         if require_staff and not service.is_support(member, config):
-            await self._reject(
-                interaction, "Only ticket staff can use that command."
-            )
+            await self._reject(interaction, "Only ticket staff can use that command.")
             return None
 
         return guild, member, channel, ticket, config
@@ -328,9 +334,7 @@ class Tickets(commands.Cog):
                 return
 
         try:
-            parsed_topics = service.parse_topics(
-                self.bot, topics, style=button_style
-            )
+            parsed_topics = service.parse_topics(self.bot, topics, style=button_style)
         except ValueError as exc:
             await self._reject(interaction, str(exc))
             return
@@ -379,7 +383,9 @@ class Tickets(commands.Cog):
             )
             return
         except discord.HTTPException as exc:
-            log.warning("Could not post the ticket panel in guild %s: %s", guild.id, exc)
+            log.warning(
+                "Could not post the ticket panel in guild %s: %s", guild.id, exc
+            )
             await self._reject(
                 interaction, f"Discord rejected the panel (HTTP {exc.status})."
             )
@@ -515,9 +521,7 @@ class Tickets(commands.Cog):
             return
         guild, member, channel, ticket, config = context
 
-        if not (
-            service.is_owner(ticket, member) or service.is_support(member, config)
-        ):
+        if not (service.is_owner(ticket, member) or service.is_support(member, config)):
             await self._reject(
                 interaction,
                 "Only the member who opened this ticket or a staff member can "
@@ -659,9 +663,7 @@ class Tickets(commands.Cog):
             "You claimed this ticket. Other staff can still read it, but they "
             "know it is yours.",
         )
-        await self._announce(
-            channel, f"{member.mention} claimed this ticket.", member
-        )
+        await self._announce(channel, f"{member.mention} claimed this ticket.", member)
 
     async def _announce(
         self,
@@ -748,12 +750,12 @@ class Tickets(commands.Cog):
                 reason=self._audit_reason(invoker, "Added to ticket"),
             )
         except discord.Forbidden:
-            await self._reject(
-                interaction, "Discord refused the permission change."
-            )
+            await self._reject(interaction, "Discord refused the permission change.")
             return
         except discord.HTTPException as exc:
-            log.warning("Could not add member %s to ticket %s: %s", member.id, channel.id, exc)
+            log.warning(
+                "Could not add member %s to ticket %s: %s", member.id, channel.id, exc
+            )
             await self._reject(
                 interaction, f"Discord rejected the change (HTTP {exc.status})."
             )
@@ -815,14 +817,16 @@ class Tickets(commands.Cog):
             await self._respond(
                 interaction,
                 (
-                    f"\u2139\ufe0f **{member.display_name}** sees this ticket "
-                    "through a role, not a personal override. Adjust that role's "
-                    "permissions instead."
-                )
-                if visible
-                else (
-                    f"\u2139\ufe0f **{member.display_name}** does not have access "
-                    "to this ticket."
+                    (
+                        f"\u2139\ufe0f **{member.display_name}** sees this ticket "
+                        "through a role, not a personal override. Adjust that role's "
+                        "permissions instead."
+                    )
+                    if visible
+                    else (
+                        f"\u2139\ufe0f **{member.display_name}** does not have access "
+                        "to this ticket."
+                    )
                 ),
             )
             return
@@ -890,7 +894,9 @@ class Tickets(commands.Cog):
             config = await self.repo.get_config(guild.id)
         except Exception:
             log.exception("Could not read the ticket config for guild %s.", guild.id)
-            await self._reject(interaction, "I could not read the ticket configuration.")
+            await self._reject(
+                interaction, "I could not read the ticket configuration."
+            )
             return
 
         if not service.is_support(member, config):

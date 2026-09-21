@@ -35,6 +35,7 @@ Security model:
   without a filter unless ``allow_full_table=True`` is passed explicitly, so a
   forgotten ``where`` cannot wipe a table.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -145,9 +146,11 @@ class DatabasePool:
 
         self.busy_timeout_ms: int = max(
             0,
-            busy_timeout_ms
-            if busy_timeout_ms is not None
-            else _env_int("DATABASE_BUSY_TIMEOUT_MS", DEFAULT_BUSY_TIMEOUT_MS),
+            (
+                busy_timeout_ms
+                if busy_timeout_ms is not None
+                else _env_int("DATABASE_BUSY_TIMEOUT_MS", DEFAULT_BUSY_TIMEOUT_MS)
+            ),
         )
         self.acquire_timeout: float = acquire_timeout
 
@@ -213,9 +216,7 @@ class DatabasePool:
             raise
 
         await self._apply_schema()
-        log.info(
-            "Database pool ready; schema version %d verified.", SCHEMA_VERSION
-        )
+        log.info("Database pool ready; schema version %d verified.", SCHEMA_VERSION)
 
     async def _new_connection(self) -> aiosqlite.Connection:
         """Creates a single connection with Fyrion's required PRAGMAs applied."""
@@ -376,9 +377,7 @@ class DatabasePool:
             async with conn.execute(query, tuple(parameters)) as cursor:
                 return cursor.rowcount
 
-    async def executemany(
-        self, query: str, parameters: Iterable[Sequence[Any]]
-    ) -> int:
+    async def executemany(self, query: str, parameters: Iterable[Sequence[Any]]) -> int:
         """Runs a batched write and commits. Returns rows affected."""
         rows = [tuple(item) for item in parameters]
         if not rows:
@@ -490,9 +489,7 @@ class DatabasePool:
         return " WHERE " + " AND ".join(clauses), params
 
     @classmethod
-    def _order_clause(
-        cls, table: str, order_by: str | Sequence[str] | None
-    ) -> str:
+    def _order_clause(cls, table: str, order_by: str | Sequence[str] | None) -> str:
         if not order_by:
             return ""
 
@@ -512,9 +509,7 @@ class DatabasePool:
         return " ORDER BY " + ", ".join(parts)
 
     @classmethod
-    def _select_columns(
-        cls, table: str, columns: Sequence[str] | None
-    ) -> str:
+    def _select_columns(cls, table: str, columns: Sequence[str] | None) -> str:
         if not columns:
             return "*"
         cls._check_columns(table, columns)
@@ -539,9 +534,7 @@ class DatabasePool:
             clause += f" OFFSET {effective_offset}"
         return clause
 
-    async def _ensure_parent_rows(
-        self, table: str, values: Mapping[str, Any]
-    ) -> None:
+    async def _ensure_parent_rows(self, table: str, values: Mapping[str, Any]) -> None:
         """Creates the ``guild_settings`` parent row for guild-scoped inserts.
 
         Foreign keys are enforced, so a child row cannot be written before its
@@ -651,9 +644,7 @@ class DatabasePool:
         selection = self._select_columns(table, columns)
         where_sql, params = self._where_clause(table, where)
         order_sql = self._order_clause(table, order_by)
-        query = (
-            f"SELECT {selection} FROM {_quote(table)}{where_sql}{order_sql} LIMIT 1"
-        )
+        query = f"SELECT {selection} FROM {_quote(table)}{where_sql}{order_sql} LIMIT 1"
         row = await self.fetchrow(query, params)
         return dict(row) if row is not None else None
 
@@ -725,9 +716,7 @@ class DatabasePool:
         query = f"DELETE FROM {_quote(table)}{where_sql}"
         return await self.execute(query, params)
 
-    async def count(
-        self, table: str, where: Mapping[str, Any] | None = None
-    ) -> int:
+    async def count(self, table: str, where: Mapping[str, Any] | None = None) -> int:
         """Counts matching rows."""
         self._check_table(table)
         where_sql, params = self._where_clause(table, where)
@@ -759,9 +748,7 @@ class DatabasePool:
         self._check_columns(table, [column])
         where_sql, params = self._where_clause(table, where)
         quoted = _quote(column)
-        query = (
-            f"UPDATE {_quote(table)} SET {quoted} = {quoted} + ?{where_sql}"
-        )
+        query = f"UPDATE {_quote(table)} SET {quoted} = {quoted} + ?{where_sql}"
         return await self.execute(query, [int(amount), *params])
 
     # ------------------------------------------------------------------
@@ -962,9 +949,7 @@ class DatabasePool:
     # economy_accounts
     # ------------------------------------------------------------------
 
-    async def get_economy_account(
-        self, guild_id: int, user_id: int
-    ) -> dict[str, Any]:
+    async def get_economy_account(self, guild_id: int, user_id: int) -> dict[str, Any]:
         """Returns a wallet, creating an empty one on first access."""
         account = await self.fetch_one(
             "economy_accounts", {"guild_id": guild_id, "user_id": user_id}
@@ -1083,9 +1068,7 @@ class DatabasePool:
     # leveling_profiles / level_rewards
     # ------------------------------------------------------------------
 
-    async def get_leveling_profile(
-        self, guild_id: int, user_id: int
-    ) -> dict[str, Any]:
+    async def get_leveling_profile(self, guild_id: int, user_id: int) -> dict[str, Any]:
         profile = await self.fetch_one(
             "leveling_profiles", {"guild_id": guild_id, "user_id": user_id}
         )
@@ -1360,9 +1343,7 @@ class DatabasePool:
         )
 
     async def bump_custom_command_uses(self, command_id: int) -> None:
-        await self.increment(
-            "custom_commands", "uses", 1, {"command_id": command_id}
-        )
+        await self.increment("custom_commands", "uses", 1, {"command_id": command_id})
 
     # ------------------------------------------------------------------
     # reaction_roles
