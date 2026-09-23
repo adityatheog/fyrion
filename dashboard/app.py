@@ -152,11 +152,7 @@ SAFE_DB_STAT_KEYS = frozenset(
 
 
 class OAuthError(RuntimeError):
-    """Raised when Discord refuses or fails an OAuth exchange.
-
-    The message is user facing, so it never contains a URL, a payload excerpt or
-    any other internal detail.
-    """
+    """Raised when Discord refuses or fails an OAuth exchange."""
 
 
 # ---------------------------------------------------------------------------
@@ -165,12 +161,7 @@ class OAuthError(RuntimeError):
 
 
 class SlidingWindowLimiter:
-    """Small in-process sliding-window limiter.
-
-    Enough for a single-process self-hosted dashboard: it blunts credential
-    stuffing and accidental request storms. Deployments behind a shared edge
-    should also rate limit there.
-    """
+    """Small in-process sliding-window limiter."""
 
     def __init__(self, limit: int, window: int, *, max_keys: int = 10_000) -> None:
         self.limit = max(1, int(limit))
@@ -183,7 +174,6 @@ class SlidingWindowLimiter:
         bucket = self._hits.get(key)
         if bucket is None:
             if len(self._hits) >= self.max_keys:
-                # Unbounded growth is itself a denial-of-service vector.
                 self._evict(now)
             bucket = deque()
             self._hits[key] = bucket
@@ -209,11 +199,6 @@ class SlidingWindowLimiter:
             del self._hits[key]
         if len(self._hits) < self.max_keys:
             return
-        # Every bucket is still active. Drop the least-recently-used entries
-        # rather than clearing the whole table: a full clear would reset every
-        # caller's counters (including a flooder's) under the exact load the
-        # limiter exists to handle. Evict a batch so this need not run again on
-        # the very next request.
         overflow = len(self._hits) - self.max_keys + 1
         to_drop = max(overflow, self.max_keys // 10)
         oldest = sorted(self._hits, key=lambda key: self._hits[key][-1])[:to_drop]
@@ -227,7 +212,6 @@ class SlidingWindowLimiter:
 
 
 def callback_path() -> str:
-    """Returns the path the OAuth callback is served on."""
     raw = (Config.DASHBOARD_OAUTH_CALLBACK_PATH or DEFAULT_CALLBACK_PATH).strip()
     if not raw:
         raw = DEFAULT_CALLBACK_PATH
@@ -237,7 +221,6 @@ def callback_path() -> str:
 
 
 def redirect_uri() -> str:
-    """The exact redirect URI that must be registered with Discord."""
     return f"{Config.DASHBOARD_BASE_URL}{callback_path()}"
 
 
@@ -246,13 +229,6 @@ def oauth_configured() -> bool:
 
 
 def session_secret() -> str:
-    """Returns the session signing key.
-
-    Without a configured key an ephemeral one is generated so development stays
-    usable, and the warning makes it obvious that sessions will not survive a
-    restart. ``Config.validate()`` refuses to enable the dashboard without a
-    key, so production never reaches this branch.
-    """
     configured = Config.DASHBOARD_SECRET_KEY
     if configured:
         return configured
@@ -272,7 +248,6 @@ def as_int(value: Any, default: int = 0) -> int:
 
 
 def can_manage(permissions: int, owner: bool) -> bool:
-    """Returns True when a permission bitfield grants server management."""
     if owner:
         return True
     return bool(
@@ -281,11 +256,6 @@ def can_manage(permissions: int, owner: bool) -> bool:
 
 
 def safe_next_path(raw: Any) -> str | None:
-    """Validates a post-login redirect target.
-
-    Only same-origin absolute paths are accepted, so ``?next=`` cannot be used
-    as an open redirect.
-    """
     if not raw or not isinstance(raw, str):
         return None
     if len(raw) > 300:
@@ -312,17 +282,11 @@ def user_avatar_url(user_id: Any, avatar_hash: Any) -> str | None:
 
 
 def json_attribute(payload: Any) -> str:
-    """Serializes data for embedding in a ``data-`` attribute.
-
-    Jinja's autoescaping handles the HTML quoting; the angle-bracket escaping
-    here is belt and braces so the value can never terminate the element.
-    """
     text = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
     return text.replace("<", "\\u003c").replace(">", "\\u003e")
 
 
 def serialize_ids(row: Mapping[str, Any]) -> dict[str, Any]:
-    """Renders snowflakes as strings so JavaScript cannot lose precision."""
     result: dict[str, Any] = {}
     for key, value in row.items():
         if (
@@ -357,7 +321,7 @@ def get_db(request: Request) -> Any:
 
 def get_http(request: Request) -> httpx.AsyncClient:
     client = getattr(request.app.state, "http", None)
-    if client is None:  # pragma: no cover - lifespan always sets this
+    if client is None:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "The HTTP client is unavailable."
         )
@@ -365,11 +329,6 @@ def get_http(request: Request) -> httpx.AsyncClient:
 
 
 def client_ip(request: Request) -> str:
-    # uvicorn is started with proxy_headers + forwarded_allow_ips when
-    # DASHBOARD_TRUST_PROXY is set (see dashboard/__main__.py), so it has already
-    # resolved the trusted client IP into request.client.host. Reading the raw
-    # X-Forwarded-For here would trust the spoofable left-most entry, letting a
-    # caller rotate it per request to defeat the login/auth rate limiter.
     return request.client.host if request.client else "unknown"
 
 
@@ -388,7 +347,6 @@ def enforce_rate_limit(request: Request, scope: str) -> None:
 
 
 def session_user(request: Request) -> dict[str, Any] | None:
-    """Returns the signed-in user, or ``None``."""
     user = request.session.get(SESSION_USER)
     if not isinstance(user, dict) or not user.get("id"):
         return None
@@ -409,7 +367,6 @@ def require_user(request: Request) -> dict[str, Any]:
 
 
 def require_csrf(request: Request) -> None:
-    """Validates the double-submit CSRF token on a mutating request."""
     expected = request.session.get(SESSION_CSRF)
     supplied = request.headers.get("x-csrf-token", "")
     if (
@@ -431,7 +388,6 @@ def session_guilds(request: Request) -> list[dict[str, Any]]:
 
 
 def manageable_entry(request: Request, guild_id: int) -> dict[str, Any] | None:
-    """Returns the session snapshot for a guild the user may manage."""
     for entry in session_guilds(request):
         if as_int(entry.get("id"), -1) != guild_id:
             continue
@@ -442,7 +398,7 @@ def manageable_entry(request: Request, guild_id: int) -> dict[str, Any] | None:
 
 
 # ---------------------------------------------------------------------------
-# Discord OAuth exchange
+# OAuth exchange and guild resolution
 # ---------------------------------------------------------------------------
 
 
@@ -459,11 +415,6 @@ async def _post_form(
 async def exchange_code(
     client: httpx.AsyncClient, code: str
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """Exchanges an authorization code for the user's profile and guild list.
-
-    The access token is used once and then revoked, so Fyrion never holds a live
-    Discord credential for a dashboard user.
-    """
     payload = {
         "client_id": Config.DISCORD_CLIENT_ID or "",
         "client_secret": Config.DISCORD_CLIENT_SECRET or "",
@@ -474,16 +425,10 @@ async def exchange_code(
 
     try:
         response = await _post_form(client, TOKEN_URL, payload)
-    except httpx.HTTPError as exc:
-        log.warning("OAuth token exchange transport error: %s", exc)
+    except httpx.HTTPError:
         raise OAuthError("Could not reach Discord to complete the sign-in.") from None
 
     if response.status_code != 200:
-        log.warning(
-            "OAuth token exchange failed (HTTP %s): %s",
-            response.status_code,
-            response.text[:500],
-        )
         raise OAuthError("Discord rejected the authorization code.")
 
     try:
@@ -519,8 +464,7 @@ async def _fetch_json(client: httpx.AsyncClient, url: str, access_token: str) ->
         response = await client.get(
             url, headers={"Authorization": f"Bearer {access_token}"}
         )
-    except httpx.HTTPError as exc:
-        log.warning("OAuth read of %s failed: %s", url, exc)
+    except httpx.HTTPError:
         raise OAuthError("Could not reach Discord to complete the sign-in.") from None
 
     if response.status_code == 429:
@@ -528,7 +472,6 @@ async def _fetch_json(client: httpx.AsyncClient, url: str, access_token: str) ->
             "Discord is rate limiting this instance. Please try again in a minute."
         )
     if response.status_code != 200:
-        log.warning("OAuth read of %s returned HTTP %s.", url, response.status_code)
         raise OAuthError("Discord did not return your account details.")
     if len(response.content) > MAX_RESPONSE_BYTES:
         raise OAuthError("Discord returned an unexpectedly large response.")
@@ -550,24 +493,11 @@ async def _revoke_token(client: httpx.AsyncClient, access_token: str) -> None:
         response = await _post_form(client, REVOKE_URL, payload)
         if response.status_code >= 400:
             log.debug("Token revocation returned HTTP %s.", response.status_code)
-    except httpx.HTTPError as exc:
-        # Revocation is hygiene, not a hard requirement for a working sign-in.
-        log.debug("Token revocation failed: %s", exc)
-
-
-# ---------------------------------------------------------------------------
-# Guild resolution
-# ---------------------------------------------------------------------------
+    except httpx.HTTPError:
+        log.debug("Token revocation failed.")
 
 
 async def resolve_member(guild: Any, user_id: int) -> tuple[Any | None, bool]:
-    """Returns ``(member, lookup_failed)`` for a guild member.
-
-    ``chunk_guilds_at_startup`` is disabled, so the member cache is usually cold
-    and a REST fetch is normally required. A transport failure is reported
-    separately from "not a member", because the two must be treated differently:
-    the first falls back to the OAuth snapshot, the second is a hard refusal.
-    """
     import discord
 
     member = guild.get_member(user_id)
@@ -601,8 +531,6 @@ class GuildAccess:
         self.guild = guild
         self.member = member
         self.entry = dict(entry)
-        # True when the gateway client can see this guild, which is what makes
-        # the channel and role pickers available.
         self.live = guild is not None
 
     @property
@@ -619,11 +547,6 @@ class GuildAccess:
 
 
 async def authorize_guild(request: Request, guild_id: int) -> GuildAccess:
-    """Authorizes the signed-in user for one guild.
-
-    A guild the user cannot manage is reported as ``404`` rather than ``403`` so
-    the API does not confirm whether an arbitrary snowflake exists.
-    """
     require_user(request)
 
     entry = manageable_entry(request, guild_id)
@@ -643,7 +566,6 @@ async def authorize_guild(request: Request, guild_id: int) -> GuildAccess:
         member, lookup_failed = await resolve_member(guild, user_id)
 
         if member is None and not lookup_failed:
-            # Fyrion can see the guild and Discord says the user is not in it.
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN, "You are not a member of that server."
             )
@@ -651,8 +573,6 @@ async def authorize_guild(request: Request, guild_id: int) -> GuildAccess:
         if member is not None:
             permissions = member.guild_permissions
             if not (permissions.administrator or permissions.manage_guild):
-                # Defence in depth: the live permission wins over the snapshot,
-                # which may be minutes old.
                 raise HTTPException(
                     status.HTTP_403_FORBIDDEN,
                     "The Manage Server permission is required for that server.",
@@ -662,7 +582,6 @@ async def authorize_guild(request: Request, guild_id: int) -> GuildAccess:
 
 
 def describe_guild(entry: Mapping[str, Any], bot: Any | None) -> dict[str, Any]:
-    """Renders one guild for the picker and the API."""
     guild_id = as_int(entry.get("id"))
     guild = bot.get_guild(guild_id) if bot is not None else None
     permissions = as_int(entry.get("permissions"))
@@ -698,13 +617,11 @@ def manageable_guilds(request: Request) -> list[dict[str, Any]]:
         for entry in session_guilds(request)
         if can_manage(as_int(entry.get("permissions")), bool(entry.get("owner")))
     ]
-    # Servers Fyrion is already in come first, then alphabetically.
     guilds.sort(key=lambda item: (not item["bot_present"], item["name"].lower()))
     return guilds
 
 
 def describe_channels(guild: Any | None) -> dict[str, list[dict[str, Any]]]:
-    """Returns the guild's channels, grouped by kind."""
     if guild is None:
         return {"text": [], "voice": [], "categories": []}
 
@@ -738,7 +655,6 @@ def describe_channels(guild: Any | None) -> dict[str, list[dict[str, Any]]]:
 
 
 def describe_roles(guild: Any | None) -> list[dict[str, Any]]:
-    """Returns the guild's roles, highest first."""
     if guild is None:
         return []
 
@@ -760,7 +676,6 @@ def describe_roles(guild: Any | None) -> list[dict[str, Any]]:
                 "managed": bool(role.managed),
                 "is_default": bool(role.is_default()),
                 "administrator": bool(role.permissions.administrator),
-                # Tells the UI which roles are usable for autorole and mute.
                 "assignable": assignable,
             }
         )
@@ -808,7 +723,6 @@ def login_redirect(request: Request) -> RedirectResponse:
 
 @pages.get("/", name="index")
 async def index(request: Request) -> Response:
-    """Landing page. Public: it contains nothing that is not already public."""
     if session_user(request) is not None:
         return RedirectResponse("/dashboard", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -878,7 +792,6 @@ async def manage_page(guild_id: int, request: Request) -> Response:
 
 
 def invite_url() -> str | None:
-    """Returns the bot invite URL when the client id is configured."""
     client_id = Config.DISCORD_CLIENT_ID
     if not client_id:
         return None
@@ -886,9 +799,6 @@ def invite_url() -> str | None:
         {
             "client_id": client_id,
             "scope": "bot applications.commands",
-            # Manage Server, Manage Roles, Manage Channels, Kick, Ban, Manage
-            # Messages, Moderate Members, Embed Links, Attach Files, Read
-            # History, Add Reactions.
             "permissions": "1101659730518",
         }
     )
@@ -897,7 +807,6 @@ def invite_url() -> str | None:
 
 @pages.get("/health", name="health")
 async def health(request: Request) -> JSONResponse:
-    """Liveness probe. Intentionally minimal: no counts, no configuration."""
     bot = get_bot(request)
     db = getattr(request.app.state, "db", None)
 
@@ -924,7 +833,6 @@ async def health(request: Request) -> JSONResponse:
 
 @auth.get("/login", name="login", include_in_schema=False)
 async def login(request: Request, next: str | None = None) -> Response:
-    """Starts the Discord OAuth handshake."""
     enforce_rate_limit(request, "auth")
 
     if not oauth_configured():
@@ -967,13 +875,9 @@ async def oauth_callback(
     state: str | None = None,
     error: str | None = None,
 ) -> Response:
-    """Completes the handshake and populates the session."""
     enforce_rate_limit(request, "auth")
 
     expected_state = request.session.pop(SESSION_STATE, None)
-    # Capture the post-login redirect target now: session.clear() below wipes
-    # the whole session dict, so reading SESSION_NEXT after it would always be
-    # None and the ?next= deep link would be lost.
     next_path = request.session.get(SESSION_NEXT)
 
     if error:
@@ -988,8 +892,6 @@ async def oauth_callback(
     if not isinstance(expected_state, str) or not hmac.compare_digest(
         expected_state, state
     ):
-        # Either the session expired between /login and /callback, or this is a
-        # forged callback. Both are refused.
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             "The sign-in attempt expired or could not be verified. Please try "
@@ -1004,8 +906,6 @@ async def oauth_callback(
     user_id = str(profile["id"])
     username = str(profile.get("global_name") or profile.get("username") or "Unknown")
 
-    # Only the fields the dashboard actually renders are kept; the raw payload is
-    # discarded so the cookie stays small.
     snapshot: list[dict[str, Any]] = []
     for entry in guilds:
         entry_id = entry.get("id")
@@ -1013,8 +913,6 @@ async def oauth_callback(
             continue
         permissions = as_int(entry.get("permissions"))
         if not can_manage(permissions, bool(entry.get("owner"))):
-            # Servers the user cannot manage are dropped entirely: the dashboard
-            # has nothing to show for them.
             continue
         snapshot.append(
             {
@@ -1050,11 +948,10 @@ async def oauth_callback(
     "/logout", methods=["GET", "POST"], name="logout", include_in_schema=False
 )
 async def logout(request: Request) -> Response:
-    """Clears the session and returns to the landing page."""
     user = session_user(request)
     request.session.clear()
     if user is not None:
-        log.info("Dashboard sign-out for user %s.", user.get("id"))
+        log.info("Dashboard sign-out for user %s", user.get("id"))
     return RedirectResponse("/", status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -1065,7 +962,6 @@ async def logout(request: Request) -> Response:
 
 @api.get("/me")
 async def api_me(request: Request) -> dict[str, Any]:
-    """Returns the caller's identity and session metadata."""
     enforce_rate_limit(request, "api")
     user = require_user(request)
 
@@ -1089,7 +985,6 @@ async def api_me(request: Request) -> dict[str, Any]:
 
 @api.get("/guilds")
 async def api_guilds(request: Request) -> dict[str, Any]:
-    """Lists the servers the caller may configure."""
     enforce_rate_limit(request, "api")
     require_user(request)
 
@@ -1104,7 +999,6 @@ async def api_guilds(request: Request) -> dict[str, Any]:
 
 @api.get("/guilds/{guild_id}")
 async def api_guild(guild_id: int, request: Request) -> dict[str, Any]:
-    """Returns one server's settings, channels and roles."""
     enforce_rate_limit(request, "api")
     access = await authorize_guild(request, guild_id)
 
@@ -1145,13 +1039,7 @@ async def api_guild(guild_id: int, request: Request) -> dict[str, Any]:
 async def api_update_guild(
     guild_id: int, payload: GuildSettingsUpdate, request: Request
 ) -> dict[str, Any]:
-    """Applies a partial settings update.
-
-    Referenced channels and roles must exist in *this* guild, so a request can
-    never point one server's configuration at another server's objects. The
-    database layer validates the column names again before building SQL, and
-    every value is bound as a parameter.
-    """
+    """Applies a partial settings update."""
     enforce_rate_limit(request, "api")
     require_csrf(request)
     access = await authorize_guild(request, guild_id)
@@ -1161,6 +1049,13 @@ async def api_update_guild(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "No settings were supplied.")
 
     guild = access.guild
+    if guild is None and (CHANNEL_FIELDS & values.keys() or ROLE_FIELDS & values.keys()):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Discord channel and role settings cannot be validated while the "
+            "dashboard has no live access to this server.",
+        )
+
     if guild is not None:
         for field, value in values.items():
             if value is None:
@@ -1185,8 +1080,6 @@ async def api_update_guild(
                     )
                 me = guild.me
                 if me is not None and me.top_role <= role:
-                    # Storing a role Fyrion cannot assign would fail silently
-                    # every time the feature ran.
                     raise HTTPException(
                         status.HTTP_400_BAD_REQUEST,
                         f"{field} is at or above Fyrion's highest role, so it "
@@ -1209,7 +1102,6 @@ async def api_update_guild(
 
 @api.get("/bot/stats")
 async def api_bot_stats(request: Request) -> dict[str, Any]:
-    """Instance-level counters. Filesystem paths are never exposed."""
     enforce_rate_limit(request, "api")
     require_user(request)
 
@@ -1265,7 +1157,6 @@ async def api_bot_stats(request: Request) -> dict[str, Any]:
                 if guild.member_count is not None
             ),
             "shards": bot.shard_count or 1,
-            # discord.py reports nan until the first heartbeat ack arrives.
             "latency_ms": round(latency * 1000) if latency == latency else None,
             "cogs": sorted(bot.cogs),
             "commands": len(bot.tree.get_commands()),
@@ -1276,14 +1167,13 @@ async def api_bot_stats(request: Request) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# Middleware and error handlers
+# Middleware and exception handlers
 # ---------------------------------------------------------------------------
 
 
 def _install_middleware(app: FastAPI) -> None:
     trusted = list(Config.DASHBOARD_TRUSTED_HOSTS)
     if trusted:
-        # Blocks Host-header attacks and DNS rebinding against a local bind.
         app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted)
 
     app.add_middleware(
@@ -1291,8 +1181,6 @@ def _install_middleware(app: FastAPI) -> None:
         secret_key=session_secret(),
         session_cookie="fyrion_session",
         max_age=Config.DASHBOARD_SESSION_TTL_SECONDS,
-        # Lax rather than Strict, so the cookie still accompanies the top-level
-        # redirect back from Discord.
         same_site="lax",
         https_only=Config.DASHBOARD_COOKIE_SECURE,
         domain=Config.DASHBOARD_COOKIE_DOMAIN,
@@ -1302,8 +1190,6 @@ def _install_middleware(app: FastAPI) -> None:
     if origins:
         from fastapi.middleware.cors import CORSMiddleware
 
-        # Explicit origins only: the API authenticates with a cookie, so '*' is
-        # rejected by Config.validate() and would be refused by browsers anyway.
         app.add_middleware(
             CORSMiddleware,
             allow_origins=origins,
@@ -1322,7 +1208,6 @@ def _install_middleware(app: FastAPI) -> None:
             response.headers.setdefault(
                 "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
             )
-        # Authenticated payloads must never be cached by an intermediary.
         if request.url.path.startswith(("/api", "/login", "/logout", "/manage")):
             response.headers.setdefault("Cache-Control", "no-store")
         return response
@@ -1340,7 +1225,6 @@ def _install_exception_handlers(app: FastAPI) -> None:
     async def _http_error(request: Request, exc: StarletteHTTPException) -> Response:
         detail = exc.detail if isinstance(exc.detail, str) else "Request failed."
 
-        # An unauthenticated page request is a sign-in prompt, not an error.
         if exc.status_code == status.HTTP_401_UNAUTHORIZED and not _wants_json(request):
             return login_redirect(request)
 
@@ -1367,7 +1251,6 @@ def _install_exception_handlers(app: FastAPI) -> None:
     async def _validation_error(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        # Field names and messages only: the submitted input is not echoed back.
         details = [
             {
                 "field": ".".join(str(part) for part in error.get("loc", ())[1:]),
@@ -1382,8 +1265,6 @@ def _install_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception) -> Response:
-        # A short reference lets a user quote the failure without exposing any
-        # internals (SQL text, paths, tracebacks) to the browser.
         reference = uuid.uuid4().hex[:8]
         log.error(
             "Unhandled dashboard error on %s %s (reference %s)",
@@ -1423,20 +1304,10 @@ def _install_exception_handlers(app: FastAPI) -> None:
 
 
 def create_app(bot: Any | None = None, *, db: Any | None = None) -> FastAPI:
-    """Builds the dashboard application.
-
-    Args:
-        bot: a running gateway client. When supplied, the dashboard reads the
-            live guild cache and the bot's own database pool, which is what
-            makes the channel and role pickers work.
-        db: an explicit database pool. Defaults to ``bot.db`` when a bot is
-            given, otherwise a pool is opened for the dashboard's own lifetime.
-    """
+    """Builds the dashboard application."""
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        # One pooled HTTP client for the OAuth exchanges, created inside the
-        # running loop as httpx expects.
         app.state.http = httpx.AsyncClient(
             timeout=HTTP_TIMEOUT,
             limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
@@ -1478,8 +1349,6 @@ def create_app(bot: Any | None = None, *, db: Any | None = None) -> FastAPI:
         version=Config.VERSION,
         description="Configuration UI and API for the Fyrion Discord bot.",
         lifespan=lifespan,
-        # The schema describes an authenticated admin surface, so it is not
-        # published in production.
         docs_url="/docs" if docs_enabled else None,
         redoc_url=None,
         openapi_url="/openapi.json" if docs_enabled else None,
@@ -1500,16 +1369,13 @@ def create_app(bot: Any | None = None, *, db: Any | None = None) -> FastAPI:
 
     if STATIC_DIR.is_dir():
         app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-    else:  # pragma: no cover - only when the package is installed incompletely
+    else:
         log.warning("Static asset directory %s is missing.", STATIC_DIR)
 
     app.include_router(pages)
     app.include_router(auth)
     app.include_router(api)
 
-    # ``/callback`` is always available; when DASHBOARD_OAUTH_CALLBACK_PATH names
-    # a different path, that one is registered too so an existing Developer
-    # Portal redirect keeps working.
     app.add_api_route(
         DEFAULT_CALLBACK_PATH,
         oauth_callback,
