@@ -63,7 +63,9 @@ jobs:
         
     - name: Run unit and integration tests
       run: |
-        pytest tests/ -v
+        # Coverage is reported, not enforced: add --cov-fail-under=<n> once a
+        # baseline is agreed so it can only ratchet upwards.
+        pytest tests/ -v --cov --cov-report=term-missing
       env:
         # Explicitly inject dummy environment variables to satisfy config.py validation
         DISCORD_TOKEN: "dummy_ci_token_for_testing_only"
