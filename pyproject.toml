@@ -70,6 +70,14 @@ mypy_path = "src"
 explicit_package_bases = true
 namespace_packages = true
 
+[tool.pytest.ini_options]
+# Put the repository root on sys.path so tests can import the standalone
+# ``dashboard`` package, which sits beside ``src/`` and is not part of the
+# installed ``fyrion`` distribution. ``src`` mirrors what the editable install
+# provides, so a bare ``pytest`` behaves the same with or without it.
+pythonpath = [".", "src"]
+testpaths = ["tests"]
+
 [tool.coverage.run]
 # Measure the installed package and the standalone dashboard. Branch coverage
 # catches untested ``else`` paths that plain line coverage hides.
