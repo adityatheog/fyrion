@@ -7,9 +7,9 @@ Three groups of functionality live here:
   layer, which validates every column name against the schema allow-list and
   binds every value as a SQL parameter. The audit log
   (``audit_log_channel_id``) and the moderation log (``mod_log_channel_id``)
-  are independent fields, so configuring one never changes the other. A couple
-  of settings (welcome channel, autorole) are still mirrored into the legacy
-  ``guild_configs`` row for listeners that predate the consolidation.
+  are independent fields, so configuring one never changes the other. Settings
+  are written to ``guild_settings`` alone; the legacy ``guild_configs`` table is
+  not written by this cog, so the two can never disagree.
 * **Role and channel management** (``/role-*``, ``/channel-*``) which always
   runs through ``fyrion.utils.permissions`` before touching the API.
 * **Content tooling**: the interactive embed builder and reaction roles,
@@ -204,10 +204,13 @@ class Admin(FyrionCog, commands.Cog):
         return None
 
     async def _mirror_legacy(self, guild_id: int, key: str, value: Any) -> None:
-        """Writes a setting to the legacy ``guild_configs`` row as well.
+        """Re-applies a setting through the legacy configuration repository.
 
-        The welcome/autorole listeners and the ``/logs`` commands still read
-        that table, so mirroring keeps both views of the configuration in sync.
+        ``GuildConfigRepository`` was rewired to ``guild_settings`` during the
+        schema consolidation, so this writes the same column the caller wrote on
+        the preceding line and never touches ``guild_configs``. It is therefore
+        a redundant duplicate write; the docstring says so rather than implying a
+        synchronisation that no longer happens.
         """
         try:
             await self.legacy.update_config(guild_id, key, value)

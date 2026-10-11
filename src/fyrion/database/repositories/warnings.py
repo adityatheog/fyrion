@@ -2,9 +2,10 @@
 Warnings repository.
 
 All queries are scoped by ``guild_id`` so warning history never leaks between
-servers. Row counts are obtained with an explicit ``COUNT(*)`` rather than
-``cursor.rowcount`` so the repository works with either the single-connection
-manager or the pooled implementation.
+servers. Where a method reports how many warnings *exist* it counts them with an
+explicit ``COUNT(*)``; where it reports how many it just *removed* it uses the
+``DELETE``'s own row count. The two are only equal if nothing else touches the
+rows in between, so the distinction is kept rather than assumed.
 """
 
 from __future__ import annotations
@@ -54,23 +55,25 @@ class WarningsRepository:
         return int(row[0]) if row is not None else 0
 
     async def clear_warnings(self, guild_id: int, user_id: int) -> int:
-        """Clears every warning for a user in a guild. Returns rows removed."""
-        removed = await self.count_warnings(guild_id, user_id)
-        if removed:
-            query = "DELETE FROM warnings WHERE guild_id = ? AND user_id = ?"
-            await self.db.execute(query, (guild_id, user_id))
-        return removed
+        """Clears every warning for a user in a guild. Returns rows removed.
+
+        The count is the ``DELETE``'s own row count. Counting first and deleting
+        second reported a number that a concurrent delete or warning could
+        invalidate before the statement ran, so the value could differ from what
+        was actually removed -- which is what the docstring promised.
+        """
+        query = "DELETE FROM warnings WHERE guild_id = ? AND user_id = ?"
+        return await self.db.execute(query, (guild_id, user_id))
 
     async def delete_warning(self, guild_id: int, warning_id: int) -> bool:
-        """Deletes a single warning by id, scoped to the guild. Returns success."""
-        lookup = "SELECT id FROM warnings WHERE guild_id = ? AND id = ?"
-        row = await self.db.fetchrow(lookup, (guild_id, warning_id))
-        if row is None:
-            return False
+        """Deletes a single warning by id, scoped to the guild. Returns success.
 
+        One statement rather than a lookup followed by a delete: the row can
+        disappear between the two, and the delete's own row count already
+        answers exactly the question the lookup was asked.
+        """
         query = "DELETE FROM warnings WHERE guild_id = ? AND id = ?"
-        await self.db.execute(query, (guild_id, warning_id))
-        return True
+        return await self.db.execute(query, (guild_id, warning_id)) > 0
 
 
 __all__ = ["WarningsRepository"]

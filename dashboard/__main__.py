@@ -54,7 +54,7 @@ def main() -> int:
         "Starting the standalone dashboard on %s:%s (redirect URI: %s)",
         Config.DASHBOARD_HOST,
         Config.DASHBOARD_PORT,
-        f"{Config.DASHBOARD_BASE_URL}{Config.DASHBOARD_OAUTH_CALLBACK_PATH}",
+        Config.dashboard_redirect_uri(),
     )
 
     uvicorn.run(

@@ -46,7 +46,10 @@ def test_manage_role_requires_bot_manage_roles(create_mock_member, make_mock_rol
     invoker = create_mock_member(123, top_role_position=90, manage_roles=True)
     role = _role(make_mock_role, 10)
 
-    assert can_manage_role(invoker, role) == "I need the `Manage Roles` permission for that."
+    assert (
+        can_manage_role(invoker, role)
+        == "I need the `Manage Roles` permission for that."
+    )
 
 
 def test_manage_role_bot_must_outrank(create_mock_member, make_mock_role):
@@ -57,10 +60,14 @@ def test_manage_role_bot_must_outrank(create_mock_member, make_mock_role):
     assert "above my highest role" in can_manage_role(invoker, role)
 
 
-def test_manage_role_owner_bypasses_everything(create_mock_member, make_mock_role, mock_guild):
+def test_manage_role_owner_bypasses_everything(
+    create_mock_member, make_mock_role, mock_guild
+):
     create_mock_member(999, top_role_position=100, is_bot=True, manage_roles=True)
     # Owner has no Manage Roles perm and is below the admin role, yet is allowed.
-    owner = create_mock_member(mock_guild.owner_id, top_role_position=5, manage_roles=False)
+    owner = create_mock_member(
+        mock_guild.owner_id, top_role_position=5, manage_roles=False
+    )
     role = _role(make_mock_role, 10, admin=True)
 
     assert can_manage_role(owner, role) is None
@@ -71,7 +78,10 @@ def test_manage_role_requires_invoker_manage_roles(create_mock_member, make_mock
     invoker = create_mock_member(123, top_role_position=90, manage_roles=False)
     role = _role(make_mock_role, 10)
 
-    assert can_manage_role(invoker, role) == "You need the `Manage Roles` permission for that."
+    assert (
+        can_manage_role(invoker, role)
+        == "You need the `Manage Roles` permission for that."
+    )
 
 
 def test_manage_role_invoker_must_outrank(create_mock_member, make_mock_role):
@@ -86,7 +96,9 @@ def test_manage_role_non_admin_cannot_grant_admin(create_mock_member, make_mock_
     """The privilege-escalation guard: a non-admin with Manage Roles must not
     manage a role that carries Administrator."""
     create_mock_member(999, top_role_position=100, is_bot=True, manage_roles=True)
-    invoker = create_mock_member(123, top_role_position=90, manage_roles=True, administrator=False)
+    invoker = create_mock_member(
+        123, top_role_position=90, manage_roles=True, administrator=False
+    )
     role = _role(make_mock_role, 10, admin=True)
 
     assert "grants `Administrator`" in can_manage_role(invoker, role)
@@ -94,7 +106,9 @@ def test_manage_role_non_admin_cannot_grant_admin(create_mock_member, make_mock_
 
 def test_manage_role_admin_can_grant_admin(create_mock_member, make_mock_role):
     create_mock_member(999, top_role_position=100, is_bot=True, manage_roles=True)
-    invoker = create_mock_member(123, top_role_position=90, manage_roles=True, administrator=True)
+    invoker = create_mock_member(
+        123, top_role_position=90, manage_roles=True, administrator=True
+    )
     role = _role(make_mock_role, 10, admin=True)
 
     assert can_manage_role(invoker, role) is None

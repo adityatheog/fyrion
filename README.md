@@ -226,7 +226,7 @@ tears the process down cleanly instead of leaving a half-dead bot behind.
  │   AutoShardedBot    │            │  uvicorn, same loop      │
  │                     │            │                          │
  │ explicit intents    │            │  /            landing    │
- │ persistent views    │            │  /login /callback OAuth2 │
+ │ persistent views    │            │  /login /auth/callback   │
  │ cog auto-discovery  │            │  /dashboard   picker     │
  │ command tree sync   │            │  /manage/{id} settings   │
  └─────────┬───────────┘            │  /api/*       JSON       │
@@ -348,7 +348,8 @@ startup, and Fyrion will tell you so explicitly.
 
 If you intend to use the dashboard, also open **OAuth2** and register your
 redirect URI (`DASHBOARD_BASE_URL` + `DASHBOARD_OAUTH_CALLBACK_PATH`, for
-example `http://127.0.0.1:8080/callback`), then copy the client ID and secret.
+example `http://127.0.0.1:8080/auth/callback`), then copy the client ID and
+secret.
 
 ### 2. Clone the repository
 
@@ -513,7 +514,7 @@ See [`.env.example`](.env.example) for the fully annotated list.
 | Gateway | `SHARD_COUNT`, `MESSAGE_CACHE_SIZE`, `ACTIVITY_NAME`, `SYNC_COMMANDS_ON_STARTUP` |
 | Database | `DATABASE_URL`, `DATABASE_POOL_SIZE`, `DATABASE_BUSY_TIMEOUT_MS`, `DATABASE_MAINTENANCE_INTERVAL_SECONDS` |
 | Logging | `LOG_LEVEL`, `LOG_FORMAT`, `LOG_TO_FILE`, `LOG_DIR`, `LOG_FILE_NAME`, `LOG_MAX_BYTES`, `LOG_BACKUP_COUNT`, `DISCORD_LOG_LEVEL` |
-| Dashboard | `DASHBOARD_ENABLED`, `DASHBOARD_HOST`, `DASHBOARD_PORT`, `DASHBOARD_BASE_URL`, `DASHBOARD_OAUTH_CALLBACK_PATH`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DASHBOARD_SECRET_KEY`, `DASHBOARD_SESSION_TTL_SECONDS`, `DASHBOARD_ALLOWED_ORIGINS`, `DASHBOARD_TRUSTED_HOSTS`, `DASHBOARD_COOKIE_SECURE`, `DASHBOARD_COOKIE_DOMAIN`, `DASHBOARD_ACCESS_LOG`, `DASHBOARD_TRUST_PROXY`, `DASHBOARD_FORWARDED_ALLOW_IPS`, `DASHBOARD_RATE_LIMIT`, `DASHBOARD_RATE_LIMIT_WINDOW`, `DASHBOARD_AUTH_RATE_LIMIT` |
+| Dashboard | `DASHBOARD_ENABLED`, `DASHBOARD_HOST`, `DASHBOARD_PORT`, `DASHBOARD_BASE_URL`, `DASHBOARD_OAUTH_CALLBACK_PATH`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DASHBOARD_SECRET_KEY`, `DASHBOARD_SESSION_TTL_SECONDS`, `DASHBOARD_ALLOWED_ORIGINS`, `DASHBOARD_TRUSTED_HOSTS`, `DASHBOARD_COOKIE_SECURE`, `DASHBOARD_COOKIE_DOMAIN`, `DASHBOARD_ACCESS_LOG`, `DASHBOARD_TRUST_PROXY`, `DASHBOARD_FORWARDED_ALLOW_IPS`, `DASHBOARD_RATE_LIMIT`, `DASHBOARD_RATE_LIMIT_WINDOW`, `DASHBOARD_AUTH_RATE_LIMIT`, `DASHBOARD_MEMBER_LOOKUP_LIMIT` |
 
 Never commit a populated `.env`. Secrets are redacted from Fyrion's own startup
 log output.
@@ -554,9 +555,9 @@ pip install -e ".[dev]"
 ```bash
 pytest                                 # tests
 pytest tests/ -v                       # verbose
-black src tests                        # format
+black --check src tests                # format check
 flake8 src tests --max-line-length=120 # lint
-mypy src --ignore-missing-imports      # type check
+mypy src dashboard                     # type check
 ```
 
 CI runs the same checks on Python 3.10, 3.11 and 3.12 for every push and pull

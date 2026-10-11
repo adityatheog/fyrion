@@ -10,8 +10,9 @@ Resolution order:
 
 1. ``guild_settings.mod_log_channel_id``  - the modern, dashboard-managed field
 2. ``guild_settings.audit_log_channel_id`` - fallback when only auditing is set
-3. ``guild_configs.log_channel_id``        - the legacy column the ``/logs``
-   and ``/mod`` commands still write to
+3. ``guild_configs.log_channel_id``        - read-only fallback for rows written
+   before ``guild_settings`` became the single source of truth; no current
+   command writes this column
 
 Writing to the log is always best effort: a deleted channel, a revoked
 permission or a database hiccup must never fail the moderation action that has

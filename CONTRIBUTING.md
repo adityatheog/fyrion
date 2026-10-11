@@ -6,7 +6,7 @@ Fyrion is an open-source Discord bot, and contributions are welcome. Whether you
 
 Code of Conduct
 
-By participating in the Fyrion project, you agree to follow the project's ""CODE_OF_CONDUCT.md"" (CODE_OF_CONDUCT.md).
+By participating in the Fyrion project, you agree to follow the project's [Code of Conduct](CODE_OF_CONDUCT.md).
 
 Please keep discussions respectful, constructive, and focused on improving the project.
 
@@ -233,7 +233,7 @@ When reporting a bug, include:
 
 Never include bot tokens, passwords, API keys, or other secrets in an issue.
 
-For security vulnerabilities, follow ""SECURITY.md"" (SECURITY.md) instead of opening a public issue.
+For security vulnerabilities, follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
 
 ---
 

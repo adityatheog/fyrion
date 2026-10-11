@@ -1,4 +1,11 @@
-from __future__
+"""API tests for the standalone dashboard package.
+
+These exercise ``dashboard.app.api_update_guild`` directly rather than through
+an HTTP client: the function is a plain coroutine, so the validation rules can be
+tested without standing up a server, a session middleware or an OAuth handshake.
+"""
+
+from __future__ import annotations
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -38,7 +45,12 @@ def _request(db_manager, guild_id: int, *, csrf: str = "csrf", user_id: str = "4
     session = {
         SESSION_USER: {"id": user_id},
         SESSION_GUILDS: [
-            {"id": str(guild_id), "name": "Test Guild", "owner": False, "permissions": 8}
+            {
+                "id": str(guild_id),
+                "name": "Test Guild",
+                "owner": False,
+                "permissions": 8,
+            }
         ],
         SESSION_CSRF: csrf,
     }
@@ -103,18 +115,29 @@ async def test_detached_scalar_update_still_succeeds(db_manager):
 
 
 @pytest.mark.asyncio
-async def test_live_guild_channel_validation_accepts_valid_and_rejects_invalid(db_manager):
+async def test_live_guild_channel_validation_accepts_valid_and_rejects_invalid(
+    db_manager,
+):
     guild_id = 1004
     await _seed_settings(db_manager, guild_id, mod_log_channel_id=11)
     request = _request(db_manager, guild_id)
 
     valid_channel = object()
     guild = MagicMock()
-    guild.get_channel.side_effect = lambda channel_id: valid_channel if channel_id == 123 else None
-    entry = {"id": str(guild_id), "name": "Live Guild", "owner": False, "permissions": 8}
+    guild.get_channel.side_effect = lambda channel_id: (
+        valid_channel if channel_id == 123 else None
+    )
+    entry = {
+        "id": str(guild_id),
+        "name": "Live Guild",
+        "owner": False,
+        "permissions": 8,
+    }
     guild_access = GuildAccess(guild_id, guild, None, entry)
 
-    with patch.object(dashboard_app, "authorize_guild", AsyncMock(return_value=guild_access)):
+    with patch.object(
+        dashboard_app, "authorize_guild", AsyncMock(return_value=guild_access)
+    ):
         result = await dashboard_app.api_update_guild(
             guild_id,
             GuildSettingsUpdate(mod_log_channel_id=123),
@@ -123,7 +146,9 @@ async def test_live_guild_channel_validation_accepts_valid_and_rejects_invalid(d
         assert result["settings"]["mod_log_channel_id"] == 123
 
     with pytest.raises(HTTPException) as excinfo:
-        with patch.object(dashboard_app, "authorize_guild", AsyncMock(return_value=guild_access)):
+        with patch.object(
+            dashboard_app, "authorize_guild", AsyncMock(return_value=guild_access)
+        ):
             await dashboard_app.api_update_guild(
                 guild_id,
                 GuildSettingsUpdate(mod_log_channel_id=999),
@@ -135,7 +160,9 @@ async def test_live_guild_channel_validation_accepts_valid_and_rejects_invalid(d
 
 
 @pytest.mark.asyncio
-async def test_live_guild_role_validation_rejects_missing_and_protected_roles(db_manager):
+async def test_live_guild_role_validation_rejects_missing_and_protected_roles(
+    db_manager,
+):
     guild_id = 1005
     await _seed_settings(db_manager, guild_id, autorole_id=7)
     request = _request(db_manager, guild_id)
@@ -152,10 +179,17 @@ async def test_live_guild_role_validation_rejects_missing_and_protected_roles(db
         100: hierarchy_role,
     }.get(role_id)
 
-    entry = {"id": str(guild_id), "name": "Live Guild", "owner": False, "permissions": 8}
+    entry = {
+        "id": str(guild_id),
+        "name": "Live Guild",
+        "owner": False,
+        "permissions": 8,
+    }
     guild_access = GuildAccess(guild_id, guild, None, entry)
 
-    with patch.object(dashboard_app, "authorize_guild", AsyncMock(return_value=guild_access)):
+    with patch.object(
+        dashboard_app, "authorize_guild", AsyncMock(return_value=guild_access)
+    ):
         result = await dashboard_app.api_update_guild(
             guild_id,
             GuildSettingsUpdate(autorole_id=7),
@@ -164,7 +198,9 @@ async def test_live_guild_role_validation_rejects_missing_and_protected_roles(db
         assert result["settings"]["autorole_id"] == 7
 
     with pytest.raises(HTTPException) as excinfo:
-        with patch.object(dashboard_app, "authorize_guild", AsyncMock(return_value=guild_access)):
+        with patch.object(
+            dashboard_app, "authorize_guild", AsyncMock(return_value=guild_access)
+        ):
             await dashboard_app.api_update_guild(
                 guild_id,
                 GuildSettingsUpdate(autorole_id=999),
@@ -173,7 +209,9 @@ async def test_live_guild_role_validation_rejects_missing_and_protected_roles(db
     assert excinfo.value.status_code == 400
 
     with pytest.raises(HTTPException):
-        with patch.object(dashboard_app, "authorize_guild", AsyncMock(return_value=guild_access)):
+        with patch.object(
+            dashboard_app, "authorize_guild", AsyncMock(return_value=guild_access)
+        ):
             await dashboard_app.api_update_guild(
                 guild_id,
                 GuildSettingsUpdate(autorole_id=99),
@@ -181,7 +219,9 @@ async def test_live_guild_role_validation_rejects_missing_and_protected_roles(db
             )
 
     with pytest.raises(HTTPException):
-        with patch.object(dashboard_app, "authorize_guild", AsyncMock(return_value=guild_access)):
+        with patch.object(
+            dashboard_app, "authorize_guild", AsyncMock(return_value=guild_access)
+        ):
             await dashboard_app.api_update_guild(
                 guild_id,
                 GuildSettingsUpdate(autorole_id=100),
@@ -195,7 +235,9 @@ async def test_live_guild_role_validation_rejects_missing_and_protected_roles(db
 @pytest.mark.asyncio
 async def test_no_partial_update_when_object_field_is_invalid(db_manager):
     guild_id = 1006
-    await _seed_settings(db_manager, guild_id, mod_log_channel_id=1, economy_daily_amount=9)
+    await _seed_settings(
+        db_manager, guild_id, mod_log_channel_id=1, economy_daily_amount=9
+    )
     request = _request(db_manager, guild_id)
 
     with pytest.raises(HTTPException) as excinfo:

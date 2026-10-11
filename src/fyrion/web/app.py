@@ -308,11 +308,35 @@ async def require_guild_manager(
 # ---------------------------------------------------------------------------
 
 
+#: Snowflake columns whose name does not end in ``_id``. JavaScript numbers are
+#: IEEE-754 doubles, so anything above 2**53-1 loses precision when parsed; a
+#: ``_id`` suffix heuristic alone would hand a resolving moderator, ticket
+#: claimer or rule author back as a rounded number.
+_SNOWFLAKE_COLUMNS_WITHOUT_ID_SUFFIX = frozenset(
+    {
+        "resolved_by",  # moderation_cases
+        "claimed_by",  # tickets
+        "closed_by",  # tickets
+        "created_by",  # automod_rules, custom_commands, reaction_roles, shop items
+        "added_by",  # antinuke_whitelist
+    }
+)
+
+
+def _is_snowflake_column(key: str) -> bool:
+    """Whether a column holds a Discord snowflake rather than a plain number.
+
+    ``_id`` covers almost everything, but five columns name the actor instead:
+    see :data:`_SNOWFLAKE_COLUMNS_WITHOUT_ID_SUFFIX`.
+    """
+    return key.endswith("_id") or key in _SNOWFLAKE_COLUMNS_WITHOUT_ID_SUFFIX
+
+
 def _serialize_ids(row: dict[str, Any]) -> dict[str, Any]:
     """Renders snowflakes as strings so JavaScript cannot lose precision."""
     result: dict[str, Any] = {}
     for key, value in row.items():
-        if value is not None and isinstance(value, int) and key.endswith("_id"):
+        if value is not None and isinstance(value, int) and _is_snowflake_column(key):
             result[key] = str(value)
         else:
             result[key] = value
@@ -380,14 +404,19 @@ async def login(request: Request) -> RedirectResponse:
     return response
 
 
-@auth_router.get("/callback")
-async def callback(
+async def auth_callback(
     request: Request,
     code: str | None = None,
     state: str | None = None,
     error: str | None = None,
 ) -> Response:
-    """Completes the handshake and issues a session cookie."""
+    """Completes the handshake and issues a session cookie.
+
+    Registered by :func:`create_app` at ``DASHBOARD_OAUTH_CALLBACK_PATH`` rather
+    than at a hardcoded ``/auth/callback``: the redirect URI handed to Discord is
+    built from that setting, so a route at any other path would answer the
+    provider's redirect with a 404.
+    """
     _enforce_rate_limit(request, "auth")
 
     if error:
@@ -804,7 +833,34 @@ def _install_middleware(app: FastAPI) -> None:
 
     @app.middleware("http")
     async def _harden(request: Request, call_next: Any) -> Response:
-        response: Response = await call_next(request)
+        try:
+            response: Response = await call_next(request)
+        except Exception as exc:
+            # Deliberately caught here instead of in an ``Exception`` handler.
+            # Such a handler is installed on Starlette's outermost
+            # ServerErrorMiddleware, which sits *outside* every user middleware,
+            # so its 500 would be the one response that ships without the
+            # hardening headers below. Catching one layer in keeps every
+            # response the application can produce on the same path.
+            #
+            # A short reference lets a user quote the failure without exposing
+            # any internals (SQL text, paths, tracebacks) to the browser.
+            reference = uuid.uuid4().hex[:8]
+            log.error(
+                "Unhandled dashboard error on %s %s (reference %s)",
+                request.method,
+                request.url.path,
+                reference,
+                exc_info=exc,
+            )
+            response = JSONResponse(
+                {
+                    "error": "An internal error occurred.",
+                    "reference": reference,
+                },
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
         for header, value in _SECURITY_HEADERS.items():
             response.headers.setdefault(header, value)
         if Config.DASHBOARD_COOKIE_SECURE:
@@ -842,26 +898,6 @@ def _install_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             {"error": "Validation failed.", "details": details},
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        )
-
-    @app.exception_handler(Exception)
-    async def _unhandled(request: Request, exc: Exception) -> JSONResponse:
-        # A short reference lets a user quote the failure without exposing any
-        # internals (SQL text, paths, tracebacks) to the browser.
-        reference = uuid.uuid4().hex[:8]
-        log.error(
-            "Unhandled dashboard error on %s %s (reference %s)",
-            request.method,
-            request.url.path,
-            reference,
-            exc_info=exc,
-        )
-        return JSONResponse(
-            {
-                "error": "An internal error occurred.",
-                "reference": reference,
-            },
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
 
@@ -913,6 +949,18 @@ def create_app(bot: BotLike) -> FastAPI:
     app.include_router(meta_router)
     app.include_router(auth_router)
     app.include_router(api_router)
+
+    # The OAuth callback is served at exactly the path the redirect URI is built
+    # from, so DASHBOARD_OAUTH_CALLBACK_PATH is authoritative here in the same
+    # way it already is for ``python -m dashboard``. With the default value the
+    # URL is unchanged (``/auth/callback``).
+    app.add_api_route(
+        Config.DASHBOARD_OAUTH_CALLBACK_PATH,
+        auth_callback,
+        methods=["GET"],
+        name="auth_callback",
+        tags=["auth"],
+    )
 
     return app
 

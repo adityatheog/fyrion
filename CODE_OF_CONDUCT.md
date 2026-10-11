@@ -55,7 +55,7 @@ When making a report, provide as much relevant information as possible, includin
 
 Please avoid publicly sharing sensitive information about the people involved.
 
-Security vulnerabilities should not be reported through the Code of Conduct process. Follow ""SECURITY.md"" (SECURITY.md) for security-related reports.
+Security vulnerabilities should not be reported through the Code of Conduct process. Follow [SECURITY.md](SECURITY.md) for security-related reports.
 
 Enforcement Guidelines
 
