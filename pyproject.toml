@@ -18,6 +18,7 @@ dependencies = [
 dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.1",
+    "pytest-cov>=4.1.0",
     # Pinned exactly: black's formatting rules change between releases, so an
     # unpinned floor lets CI float to a newer black that reformats the tree and
     # fails `black --check`. Bump this deliberately alongside a reformat commit.
@@ -68,3 +69,18 @@ ignore_missing_imports = true
 mypy_path = "src"
 explicit_package_bases = true
 namespace_packages = true
+
+[tool.coverage.run]
+# Measure the installed package and the standalone dashboard. Branch coverage
+# catches untested ``else`` paths that plain line coverage hides.
+source = ["fyrion", "dashboard"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
