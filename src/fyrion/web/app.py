@@ -468,7 +468,10 @@ async def auth_callback(
 
 
 @auth_router.post("/logout")
-async def logout(request: Request) -> JSONResponse:
+async def logout(
+    request: Request,
+    _csrf: None = Depends(require_csrf),
+) -> JSONResponse:
     """Revokes the current session and clears the cookie."""
     token = request.cookies.get(security.SESSION_COOKIE)
     response = JSONResponse({"status": "signed_out"})
