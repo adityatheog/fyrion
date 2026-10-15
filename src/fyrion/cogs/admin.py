@@ -46,7 +46,6 @@ from discord import app_commands
 from discord.ext import commands
 
 from fyrion.cogs._base import NO_MENTIONS, FyrionCog
-from fyrion.database.repositories.guild_config import GuildConfigRepository
 from fyrion.utils.colors import parse_color
 from fyrion.utils.emojis import (
     MAX_UNICODE_EMOJI_LENGTH,
@@ -110,7 +109,6 @@ class Admin(FyrionCog, commands.Cog):
 
     def __init__(self, bot: commands.Bot) -> None:
         super().__init__(bot)
-        self.legacy = GuildConfigRepository(self.db)
 
     # ------------------------------------------------------------------
     # Shared helpers
@@ -202,22 +200,6 @@ class Admin(FyrionCog, commands.Cog):
             names = ", ".join(f"`{name}`" for name in missing)
             return f"I am missing {names} in {channel.mention}."
         return None
-
-    async def _mirror_legacy(self, guild_id: int, key: str, value: Any) -> None:
-        """Re-applies a setting through the legacy configuration repository.
-
-        ``GuildConfigRepository`` was rewired to ``guild_settings`` during the
-        schema consolidation, so this writes the same column the caller wrote on
-        the preceding line and never touches ``guild_configs``. It is therefore
-        a redundant duplicate write; the docstring says so rather than implying a
-        synchronisation that no longer happens.
-        """
-        try:
-            await self.legacy.update_config(guild_id, key, value)
-        except Exception:
-            log.exception(
-                "Could not mirror %s into guild_configs for guild %s.", key, guild_id
-            )
 
     def _invalidate_audit_cache(self, guild_id: int) -> None:
         """Drops the audit-log cog's cached destination for a guild."""
@@ -410,7 +392,6 @@ class Admin(FyrionCog, commands.Cog):
 
         if channel is None:
             await self.db.update_guild_settings(guild.id, welcome_channel_id=None)
-            await self._mirror_legacy(guild.id, "welcome_channel_id", None)
             await self._audit(guild, member, "Welcome disabled", "Channel cleared")
             await self._ok(interaction, "Welcome messages are now **disabled**.")
             return
@@ -424,7 +405,6 @@ class Admin(FyrionCog, commands.Cog):
             values["welcome_message"] = message.strip()
 
         await self.db.update_guild_settings(guild.id, **values)
-        await self._mirror_legacy(guild.id, "welcome_channel_id", channel.id)
 
         await self._audit(
             guild,
@@ -522,7 +502,6 @@ class Admin(FyrionCog, commands.Cog):
 
         if role is None:
             await self.db.update_guild_settings(guild.id, autorole_id=None)
-            await self._mirror_legacy(guild.id, "autorole_id", None)
             await self._audit(guild, member, "Autorole disabled", "Role cleared")
             await self._ok(interaction, "Autorole is now **disabled**.")
             return
@@ -534,7 +513,6 @@ class Admin(FyrionCog, commands.Cog):
             return
 
         await self.db.update_guild_settings(guild.id, autorole_id=role.id)
-        await self._mirror_legacy(guild.id, "autorole_id", role.id)
 
         await self._audit(
             guild, member, "Autorole set", f"Role: {role.name} (`{role.id}`)"

@@ -28,8 +28,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from fyrion.database.repositories.guild_config import GuildConfigRepository
-
 log = logging.getLogger("fyrion.cogs.welcome")
 
 MAX_MESSAGE_LENGTH = 2000
@@ -76,14 +74,13 @@ class WelcomeEvents(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.db: Any = bot.db  # type: ignore[attr-defined]
-        self.legacy = GuildConfigRepository(self.db)
 
     # ------------------------------------------------------------------
     # Configuration
     # ------------------------------------------------------------------
 
     async def _settings(self, guild_id: int) -> dict[str, Any]:
-        """Returns the effective configuration, merging both storage layers."""
+        """Returns the effective configuration for the guild."""
         settings: dict[str, Any] = {}
 
         getter = getattr(self.db, "get_guild_settings", None)
@@ -92,17 +89,6 @@ class WelcomeEvents(commands.Cog):
                 settings = dict(await getter(guild_id))
             except Exception:
                 log.exception("Could not read guild settings for %s.", guild_id)
-
-        try:
-            legacy = await self.legacy.get_config(guild_id)
-        except Exception:
-            log.exception("Could not read the legacy guild config for %s.", guild_id)
-            legacy = {}
-
-        # The legacy row only fills gaps; an explicit new-style value wins.
-        for key in ("welcome_channel_id", "autorole_id"):
-            if not settings.get(key) and legacy.get(key):
-                settings[key] = legacy[key]
 
         return settings
 
@@ -266,12 +252,9 @@ class ServerConfig(commands.GroupCog, name="config"):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.db: Any = bot.db  # type: ignore[attr-defined]
-        self.legacy = GuildConfigRepository(self.db)
 
     async def _save(self, guild_id: int, key: str, value: Any) -> None:
-        """Writes a setting to both the new and the legacy storage."""
-        await self.legacy.update_config(guild_id, key, value)
-
+        """Writes a setting to the guild configuration."""
         updater = getattr(self.db, "update_guild_settings", None)
         if updater is None:
             return
@@ -279,7 +262,7 @@ class ServerConfig(commands.GroupCog, name="config"):
             await updater(guild_id, **{key: value})
         except Exception:
             log.exception(
-                "Could not mirror %s into guild_settings for guild %s.", key, guild_id
+                "Could not update %s in guild_settings for guild %s.", key, guild_id
             )
 
     @app_commands.command(
